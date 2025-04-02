@@ -1,11 +1,11 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "vvunderlore-toolkit",
+	"name": "VVunderlore Toolkit",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
 	"description": "Demonstrates some of the capabilities of the Obsidian API.",
 	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"authorUrl": "https://vvunderlore.com",
+	"fundingUrl": "https://https://ko-fi.com/vvunderlore",
 	"isDesktopOnly": false
 }
