@@ -1,8 +1,42 @@
-/*
+.suggestion-item.mod-complex {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  grid-template-rows: auto auto;
+  align-items: start;
+  gap: 4px 10px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+.suggestion-icon {
+  grid-row: 1 / span 2;
+  grid-column: 1;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
 
-If your plugin does not need CSS, delete this file.
+.suggestion-title {
+  grid-column: 2;
+  font-weight: 500;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
 
-*/
+.search-suggest-info-text {
+  grid-column: 2;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+

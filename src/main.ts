@@ -5,22 +5,39 @@ import { ToolkitSettingsTab } from './settings';
 interface ToolkitSettings {
 	installedVersion: string;
 	updateTargets: {
-		tools: boolean;
-		templates: boolean;
-		omninomicon: boolean;
-		spellbookPath: string;
+	  tools: boolean;
+	  toolsPath?: string;
+	  templates: boolean;
+	  templatesPath?: string;
+	  omninomicon: boolean;
+	  omninomiconPath?: string;
+	  spellbookPath: string;
 	};
-}
+	latestDefaults?: {
+	  tools?: string;
+	  templates?: string;
+	  omninomicon?: string;
+	  spellbook?: string;
+	};
+  }
+  
+  
 
-const DEFAULT_SETTINGS: ToolkitSettings = {
+  const DEFAULT_SETTINGS: ToolkitSettings = {
 	installedVersion: '1.0.0',
 	updateTargets: {
-		tools: true,
-		templates: true,
-		omninomicon: true,
-		spellbookPath: 'Compendium/Spells/_Spellbook.md',
-	}
-};
+	  tools: true,
+	  toolsPath: 'Tools',
+	  templates: true,
+	  templatesPath: 'Extras/Templates',
+	  omninomicon: true,
+	  omninomiconPath: 'Adventures/Omninomicon.md',
+	  spellbookPath: 'Compendium/Spells/_Spellbook.md',
+	},
+	latestDefaults: undefined // will be populated by checkForUpdates()
+  };
+  
+  
 
 export default class VVunderloreToolkitPlugin extends Plugin {
   settings: ToolkitSettings;
@@ -28,6 +45,9 @@ export default class VVunderloreToolkitPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
 	this.addSettingTab(new ToolkitSettingsTab(this.app, this));
+	this.checkForUpdates();
+	this.scheduleAutoUpdateCheck();
+
 
 	this.addCommand({
 		id: 'update-selected-toolkit-content',
@@ -59,19 +79,40 @@ export default class VVunderloreToolkitPlugin extends Plugin {
   
 	// Get remote toolkit version
 	try {
-	  const res = await fetch('https://raw.githubusercontent.com/slamwise0001/vvunderlore-toolkit-plugin/main/version.json');
-	  const data = await res.json();
-	  remoteToolkitVersion = data.version || 'unknown';
-	} catch (err) {
-	  console.error(`Couldn't fetch remote toolkit version:`, err);
-	}
+		const res = await fetch('https://raw.githubusercontent.com/slamwise0001/vvunderlore-toolkit-full/main/.version.json');
+		const data = await res.json();
+		
+		remoteToolkitVersion = data.version || 'unknown';
+	
+		this.settings.latestDefaults = data.defaultPaths || {};
+		await this.saveSettings();
+	  } catch (err) {
+		console.error('Error fetching version data:', err);
+	  }
+	  
+	  
   
+	
+
 	// Compare versions
 	if (localToolkitVersion === remoteToolkitVersion) {
 	  new Notice(`✅ VVunderlore Toolkit is up to date (v${localToolkitVersion})`);
 	} else {
 	  new Notice(`⚠️ Toolkit update available! Installed: v${localToolkitVersion}, Latest: v${remoteToolkitVersion}`);
 	}
+
+	try {
+		const res = await fetch('https://raw.githubusercontent.com/slamwise0001/vvunderlore-toolkit-plugin/main/version.json');
+		const data = await res.json();
+		remoteToolkitVersion = data.version || 'unknown';
+	  
+		// 💡 Store or update the current "latest paths"
+		this.settings.latestDefaults = data.defaultPaths || {};
+		await this.saveSettings();
+	  } catch (err) {
+		console.error(`Couldn't fetch remote toolkit version`, err);
+	  }
+	  
   }
   
 
@@ -293,5 +334,21 @@ async updateSingleFileFromGitHub({ githubPath, vaultPath }: { githubPath: string
 	  return null;
 	}
   }
+
+  private autoCheckInterval: number | null = null;
+
+scheduleAutoUpdateCheck() {
+  // Check every hour (60 * 60 * 1000)
+  this.autoCheckInterval = window.setInterval(() => {
+    this.checkForUpdates(); // Will compare versions AND pull new defaults
+  }, 60 * 60 * 1000);
+}
+
+onunload() {
+  if (this.autoCheckInterval) {
+    clearInterval(this.autoCheckInterval);
+  }
+}
+
   
 }
