@@ -17,6 +17,10 @@ import {
 	SearchComponent
 } from 'obsidian';
 import type VVunderloreToolkitPlugin from './main';
+import { ConfirmFreshInstallModal } from './firstinstallconfirm';
+import { showCustomInstallModal } from "./customInstallModal";
+
+
 
 // Define your CustomPathEntry interface.
 interface CustomPathEntry {
@@ -156,58 +160,110 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 	  private renderFirstRunCard(root: HTMLElement) {
 		// 1) Outer wrapper
 		const card = root.createEl('div', { cls: 'vvunderlore-first-run' });
+		// Make the card a flex‐column and center everything:
+		Object.assign(card.style, {
+		  display: 'flex',
+		  flexDirection: 'column',
+		  alignItems: 'center',
+		  textAlign: 'center',
+		  /* 
+			Push the card a bit down from the top of the settings pane.
+			You can adjust "2em" to move it higher or lower.
+		  */
+		  marginTop: '2em',
+		  /* Optional: add some padding so it doesn't hug the edges */
+		  padding: '1em',
+		  border: '2px solid var(--divider-color)',
+		  borderRadius: '18px',        /* (optional) round the corners slightly */
+		  backgroundColor: 'var(--background-primary)', /* (optional) white/gray background */
+		});
 	  
 		// 2) Header
-		card.createEl('h2', { text: '🏰 Welcome to VVunderlore', cls: 'vv-card-title' });
+		const title = card.createEl('h2', {
+		  text: '🏰 Welcome to VVunderlore',
+		  cls: 'vv-card-title',
+		});
+		// Give the title a little bottom margin
+		title.style.marginBottom = '0.5em';
 	  
 		// 3) Instructional copy
-		card.createEl('p', {
-		  text: 'Get started by installing the default toolkit—\nor choose individual pieces to suit your vault.',
-		  cls: 'vv-card-desc'
+		const desc = card.createEl('p', {
+		  text:
+			'Get started by installing the default toolkit—\nor choose individual pieces to suit your vault.',
+		  cls: 'vv-card-desc',
 		});
+		// Slight bottom margin so it doesn't butt right up against the buttons
+		desc.style.marginBottom = '1.25em';
 	  
 		// 4) Button row → YOU MUST declare btnRow here!
-		const btnRow = card.createEl("div", { cls: "vv-button-row" });
-
-
-		const installBtn = btnRow.createEl("button", {
-			text: "Install Toolkit",
-			cls: "mod-cta",
-		  });
-		  installBtn.onClickEvent(async () => {
-			console.log("[▶️] Install button clicked");          // ①
-			installBtn.setAttribute("disabled", "");
-			try {
-			  await this.plugin.installFullToolkit();
-			  console.log("[✅] installFullToolkit() completed"); // ②
-			} catch (err) {
-			  console.error("❌ installFullToolkit() threw:", err); // ③
-			  new Notice("❌ Toolkit install failed – see console");
-			} finally {
-			  installBtn.removeAttribute("disabled");
-			}
-		  });
-		  
+		const btnRow = card.createEl('div', { cls: 'vv-button-row' });
+		// Make the two buttons sit side by side with a gap
+		Object.assign(btnRow.style, {
+		  display: 'flex',
+		  gap: '0.75em',       // space between Install and Custom
+		  justifyContent: 'center',
+		});
+		// And add a bit of bottom margin so the “skip” link isn’t too close
+		btnRow.style.marginBottom = '1.5em';
 	  
-		// “Custom Install” button (if/when you wire it up)
-		btnRow.createEl('button', {
-		  text: 'Custom Install',
+		const installBtn = btnRow.createEl('button', {
+		  text: 'Install Toolkit',
 		  cls: 'mod-cta',
-		  attr: { style: 'background: none; border: 1px solid var(--interactive-accent);' }
-		}).onClickEvent(() => {
-		  console.log('Custom install clicked');
-		  // TODO: show a custom‐install modal here
+		});
+		installBtn.onClickEvent(async () => {
+			// Open the confirm‐dialog instead of calling installFullToolkit() immediately
+			new ConfirmFreshInstallModal(this.app, this.plugin).open();
 		});
 	  
-		// 5) “Skip” link
-		card.createEl('p', { cls: 'vv-skip-link' })
-		  .createEl('a', { text: 'Already have the Toolkit? Show me the settings →' })
-		  .onClickEvent(async () => {
-			this.plugin.settings.needsInstall = false;
-			await this.plugin.saveSettings();
-			this.display();
+		// “Custom Install” button (if/when you wire it up)
+		const customBtn = btnRow.createEl('button', {
+		  text: 'Custom Install',
+		  cls: 'mod-cta',
+		});
+		// Make the custom button a ghost style so it contrasts with the primary CTA:
+		Object.assign(customBtn.style, {
+			background: 'none',
+			border: '1px solid var(--interactive-accent)',
+			color: 'var(--text-normal)',
 		  });
+		  
+		  // Only one onClickEvent, calling your modal:
+		  customBtn.onClickEvent(() => {
+			showCustomInstallModal(this.app, this.plugin);
+		  });
+	  
+		// 5) “Skip” link
+		const skipPara = card.createEl('p', { cls: 'vv-skip-link' });
+		// Center it and give it a tiny top margin
+		Object.assign(skipPara.style, {
+		  textAlign: 'center',
+		  marginTop: '0.25em',
+		});
+		skipPara
+		.createEl('a', {
+		  text: 'Already have the Toolkit? Show me the settings →',
+		})
+		.onClickEvent(async () => {
+		  // 1) Create the hidden marker file so "first‐run" never shows again:
+		  const markerPath = '.vvunderlore_installed';
+		  try {
+			// Only write it if it does not exist yet
+			if (!(await this.app.vault.adapter.exists(markerPath))) {
+			  await this.app.vault.create(markerPath, '');
+			}
+		  } catch (e) {
+			console.error('❌ Failed to create marker file:', e);
+		  }
+	  
+		  // 2) Flip needsInstall to false (so the first‐run card is gone)
+		  this.plugin.settings.needsInstall = false;
+		  await this.plugin.saveSettings();
+	  
+		  // 3) Re‐render the normal settings UI
+		  this.display();
+		});
 	  }
+	  
 	  
 	private versionValueEl: HTMLElement | null = null;
 	private forceWarningEl: HTMLElement | null = null;
@@ -401,6 +457,132 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 		}`;
 
 
+		// ───── HIGHLIGHT SECTION ───────────────────────────────────────────────────
+		const highlightDetails = containerEl.createEl('details', { cls: 'vk-section' });
+
+		// 1) Build the <summary> for highlight, matching backup style:
+		const highlightSummary = highlightDetails.createEl('summary', { cls: 'vk-section-header' });
+		Object.assign(highlightSummary.style, {
+		display: 'flex',
+		flexDirection: 'column',
+		alignItems: 'stretch',
+		padding: '0.5em 0',
+		borderBottom: '1px solid var(--divider-color)',
+		cursor: 'pointer',
+		});
+
+		// 1a) Create the title + icon row (flex row justify space-between):
+		const highlightTitleRow = highlightSummary.createDiv({
+		attr: {
+			style: `
+			display: flex;
+			justify-content: space-between;
+			align-items: flex-end;
+			`,
+		},
+		});
+
+		// 1b) Left side: title + description
+		const hlTitleBlock = highlightTitleRow.createDiv({
+		attr: { style: 'display: flex; flex-direction: column;' }
+		});
+		hlTitleBlock.createEl('h5', { text: 'VVunderlore File Highlighting' });
+		hlTitleBlock.createEl('div', {
+		text: 'Toggle on/off the highlighting of Toolkit-specific files. Also make the highlights cool colors.',
+		cls: 'setting-item-description',
+		attr: { style: 'margin-top: 0.25em;' },
+		});
+
+		// 1c) Right side: collapsing arrow/icon
+		const hlToggleIcon = highlightTitleRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
+		Object.assign(hlToggleIcon.style, {
+		fontWeight: 'bold',
+		display: 'inline-block',
+		transition: 'transform 0.2s ease',
+		transformOrigin: '50% 50%',
+		userSelect: 'none',
+		transform: highlightDetails.open ? 'rotate(0deg)' : 'rotate(180deg)',
+		});
+
+		// 1d) Make the icon rotate when the <details> opens/closes:
+		highlightDetails.ontoggle = () => {
+		hlToggleIcon.style.transform = highlightDetails.open ? 'rotate(0deg)' : 'rotate(180deg)';
+		};
+
+		// 2) Create the body container (indented, same as backup)
+		const highlightBody = highlightDetails.createDiv({ cls: 'vk-section-body' });
+		highlightBody.style.paddingLeft = '1em';
+
+		// 3) “Enable Highlight” toggle as a Setting inside highlightBody:
+		new Setting(highlightBody)
+		.setName('Enable File/Folder Highlighting')
+		.setDesc('Any file/folder installed by VVunderlore will have this background.')
+		.addToggle(toggle => {
+			toggle
+			.setValue(this.plugin.settings.highlightEnabled)
+			.onChange(async (enabled) => {
+				this.plugin.settings.highlightEnabled = enabled;
+				await this.plugin.saveSettings();
+
+				if (enabled) {
+				this.plugin.enableHighlight();
+				} else {
+				this.plugin.disableHighlight();
+				}
+
+				// Re‐render the color pickers whenever the toggle changes:
+				renderHighlightColorPickers();
+			});
+		});
+
+		// 4) Wrapper for Light/Dark color pickers:
+		const colorPickerWrapper = highlightBody.createDiv();
+
+		// 5) A function to render or clear the two ColorPicker settings:
+		const renderHighlightColorPickers = () => {
+		colorPickerWrapper.empty();
+
+		if (!this.plugin.settings.highlightEnabled) {
+			return; // do not show pickers if highlighting is disabled
+		}
+
+		// 5a) Light mode color picker
+		new Setting(colorPickerWrapper)
+			.setName('Light Mode Highlight Color')
+			.setDesc('Choose the background color for files/folders in Light mode.')
+			.addColorPicker(picker => {
+			picker
+				.setValue(this.plugin.settings.highlightColorLight)
+				.onChange(async (newColor) => {
+				this.plugin.settings.highlightColorLight = newColor;
+				await this.plugin.saveSettings();
+
+				// Re‐inject CSS so the new color takes effect immediately:
+				this.plugin.disableHighlight();
+				this.plugin.enableHighlight();
+				});
+			});
+
+		// 5b) Dark mode color picker
+		new Setting(colorPickerWrapper)
+			.setName('Dark Mode Highlight Color')
+			.setDesc('Choose the background color for files/folders in Dark mode.')
+			.addColorPicker(picker => {
+			picker
+				.setValue(this.plugin.settings.highlightColorDark)
+				.onChange(async (newColor) => {
+				this.plugin.settings.highlightColorDark = newColor;
+				await this.plugin.saveSettings();
+
+				// Re‐inject CSS so the new color takes effect immediately:
+				this.plugin.disableHighlight();
+				this.plugin.enableHighlight();
+				});
+			});
+		};
+
+		// 6) Call once on initial render so that if highlightEnabled === true, the pickers show up.
+		renderHighlightColorPickers();
 
 		// ─── BACKUP SECTION ────────────────────────────────────
 		const backupDetails = containerEl.createEl('details', { cls: 'vk-section' });
@@ -428,7 +610,7 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 		},
 		});
 
-		// Left: header block (title + description together)
+		// Left: header block (title + description together) 
 		const titleBlock = backupTitleRow.createDiv({
 		attr: { style: 'display: flex; flex-direction: column;' }
 		});
@@ -436,7 +618,7 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 		titleBlock.createEl('h5', { text: 'Vault Backups' });
 
 		titleBlock.createEl('div', {
-		text: 'Toolkit will back up your vault automatically before updates. You can also back up manually anytime.',
+		text: 'The Toolkit will back up your vault automatically before updates. You can also back up manually anytime.',
 		cls: 'setting-item-description',
 		attr: { style: 'margin-top: 0.25em;' },
 		});
