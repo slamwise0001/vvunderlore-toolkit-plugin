@@ -158,6 +158,18 @@ export async function importEditionData(params: {
     await app.vault.adapter.write(fullPath, md.content);
   }
 }
+// 🔹 FETCH OPTIONAL FEATURES JSON
+let optionalFeatures: any[] = [];
+try {
+  const res  = await fetch(`${edition.sourceUrl}/optionalfeatures.json`);
+  const raw  = await res.json();
+  optionalFeatures = Array.isArray(raw.optionalfeature)
+    ? raw.optionalfeature
+    : [];
+} catch (e) {
+  console.warn("Failed to import optionalfeatures.json:", e);
+}
+
 // 🔹 CLASSES
 {
   const classFiles = await listClassFilesFromGitHub(repo);
@@ -168,8 +180,12 @@ export async function importEditionData(params: {
       const json   = await res.json();
 
       // parse into one or more markdown files
-      const mdFiles = parseClassFile(json, edition.id, fileName);
-
+      const mdFiles = parseClassFile(
+        json,
+        edition.id,
+        fileName,
+        optionalFeatures
+      );
       for (const md of mdFiles) {
         const fullPath = normalizePath(`${targetPath}/Player Build/${md.path}`);
         // 1) ensure the folder exists
