@@ -19,7 +19,8 @@ import {
 import type VVunderloreToolkitPlugin from './main';
 import { ConfirmFreshInstallModal } from './firstinstallconfirm';
 import { showCustomInstallModal } from "./customInstallModal";
-
+import * as path from 'path';
+import { AVAILABLE_EDITIONS, Edition } from './editions'
 
 
 // Define your CustomPathEntry interface.
@@ -157,112 +158,260 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 		kofiBtn.onclick = () => window.open('https://ko-fi.com/vvunderlore', '_blank');
 	  }
 	  
-	  private renderFirstRunCard(root: HTMLElement) {
-		// 1) Outer wrapper
-		const card = root.createEl('div', { cls: 'vvunderlore-first-run' });
-		// Make the card a flex‐column and center everything:
-		Object.assign(card.style, {
-		  display: 'flex',
-		  flexDirection: 'column',
-		  alignItems: 'center',
-		  textAlign: 'center',
-		  /* 
-			Push the card a bit down from the top of the settings pane.
-			You can adjust "2em" to move it higher or lower.
-		  */
-		  marginTop: '2em',
-		  /* Optional: add some padding so it doesn't hug the edges */
-		  padding: '1em',
-		  border: '2px solid var(--divider-color)',
-		  borderRadius: '18px',        /* (optional) round the corners slightly */
-		  backgroundColor: 'var(--background-primary)', /* (optional) white/gray background */
-		});
-	  
-		// 2) Header
-		const title = card.createEl('h2', {
-		  text: '🏰 Welcome to VVunderlore',
-		  cls: 'vv-card-title',
-		});
-		// Give the title a little bottom margin
-		title.style.marginBottom = '0.5em';
-	  
-		// 3) Instructional copy
-		const desc = card.createEl('p', {
-		  text:
-			'Get started by installing the default toolkit—\nor choose individual pieces to suit your vault.',
-		  cls: 'vv-card-desc',
-		});
-		// Slight bottom margin so it doesn't butt right up against the buttons
-		desc.style.marginBottom = '1.25em';
-	  
-		// 4) Button row → YOU MUST declare btnRow here!
-		const btnRow = card.createEl('div', { cls: 'vv-button-row' });
-		// Make the two buttons sit side by side with a gap
-		Object.assign(btnRow.style, {
-		  display: 'flex',
-		  gap: '0.75em',       // space between Install and Custom
-		  justifyContent: 'center',
-		});
-		// And add a bit of bottom margin so the “skip” link isn’t too close
-		btnRow.style.marginBottom = '1.5em';
-	  
-		const installBtn = btnRow.createEl('button', {
-		  text: 'Install Toolkit',
-		  cls: 'mod-cta',
-		});
-		installBtn.onClickEvent(async () => {
-			// Open the confirm‐dialog instead of calling installFullToolkit() immediately
-			new ConfirmFreshInstallModal(this.app, this.plugin).open();
-		});
-	  
-		// “Custom Install” button (if/when you wire it up)
-		const customBtn = btnRow.createEl('button', {
-		  text: 'Custom Install',
-		  cls: 'mod-cta',
-		});
-		// Make the custom button a ghost style so it contrasts with the primary CTA:
-		Object.assign(customBtn.style, {
+		private renderFirstRunCard(root: HTMLElement){
+			
+			if (this.plugin.settings.needsInstall) {
+				this.plugin.settings.rulesetCompendium  = '';
+				this.plugin.settings.rulesetReference    = [];
+			}
+			// 1) Outer wrapper
+			const card = root.createEl('div', { cls: 'vvunderlore-first-run' });
+			// Make the card a flex‐column and center everything:
+			Object.assign(card.style, {
+			display: 'flex',
+			flexDirection: 'column',
+			alignItems: 'center',
+			textAlign: 'center',
+			/* 
+				Push the card a bit down from the top of the settings pane.
+				You can adjust "2em" to move it higher or lower.
+			*/
+			marginTop: '2em',
+			/* Optional: add some padding so it doesn't hug the edges */
+			padding: '1em',
+			border: '2px solid var(--divider-color)',
+			borderRadius: '18px',        /* (optional) round the corners slightly */
+			backgroundColor: 'var(--background-primary)', /* (optional) white/gray background */
+			});
+		
+			// 2) Header
+			const title = card.createEl('h2', {
+			text: '🏰 Welcome to VVunderlore',
+			cls: 'vv-card-title',
+			});
+			// Give the title a little bottom margin
+			title.style.marginBottom = '0.5em';
+		
+			// 3) Instructional copy
+			const desc = card.createEl('p', {
+			text:
+				'Get started by installing the default toolkit—\nor choose individual pieces to suit your vault.',
+			cls: 'vv-card-desc',
+			});
+			// Slight bottom margin so it doesn't butt right up against the buttons
+			desc.style.marginBottom = '1.25em';
+
+// ─── RULESET / REFERENCE GRID ───────────────────────────────────────────────────
+const plugin = this.plugin;
+
+// 1) Grid container
+const grid = card.createDiv();
+Object.assign(grid.style, {
+  display: 'grid',
+  gridTemplateColumns: 'max-content max-content',
+  columnGap: '1rem',
+  rowGap: '0.25rem',
+  justifyContent: 'center',
+  justifyItems: 'center',
+  marginBottom: '1rem',
+});
+
+// 2) Header row
+const labelRs = grid.createEl('div', { text: 'Ruleset' });
+labelRs.style.fontWeight = 'bold';
+const labelRef = grid.createEl('div', { text: 'Reference (optional)' });
+labelRef.style.fontWeight = 'bold';
+
+// 3) Input cells
+const rsCell = grid.createDiv({ attr: { style: 'text-align:center' } });
+const refCell = grid.createDiv({ attr: { style: 'text-align:center' } });
+
+// 4) Muted, italic summary bar (spans both columns)
+const summaryBar = grid.createDiv();
+Object.assign(summaryBar.style, {
+  gridColumn: '1 / span 2',
+  display: 'flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: '0.5rem',
+  fontSize: '0.85em',
+  color: 'var(--text-muted)',
+  fontStyle: 'italic',
+  marginTop: '0.25rem',
+  marginBottom: '1rem',
+});
+const rulesetSpan = summaryBar.createSpan({
+  text: `Ruleset: ${
+    plugin.settings.rulesetCompendium
+      ? `D&D 5E (${plugin.settings.rulesetCompendium})`
+      : ''
+  }`,
+});
+rulesetSpan.style.fontWeight = 'bold';
+summaryBar.createSpan({ text: 'References:' });
+const chipsWrapper = summaryBar.createDiv();
+Object.assign(chipsWrapper.style, { display: 'flex', gap: '4px' });
+
+// Helper to render a chip
+function addChip(id: string) {
+	const ed = AVAILABLE_EDITIONS.find(e => e.id === id)!;
+	const chip = chipsWrapper.createDiv({
+	  attr: {
+		style:
+		  'background: var(--interactive-accent); color: white; padding:2px 6px; ' +
+		  'border-radius:4px; display:inline-flex; align-items:center; gap:4px;'
+	  }
+	});
+	chip.createSpan({ text: ed.label });
+	const rem = chip.createSpan({
+	  text: '×',
+	  attr: { style: 'cursor:pointer; margin-left:4px;' }
+	});
+	rem.onclick = async () => {
+	  plugin.settings.rulesetReference = plugin.settings.rulesetReference.filter(x => x !== id);
+	  await plugin.saveSettings();
+	  chip.remove();
+	  updateInstallButtons();
+	};
+  }
+  ;
+
+// Initial chips draw
+plugin.settings.rulesetReference.forEach(e => addChip(e));
+
+// 5) Ruleset dropdown
+const rsDropdown = new DropdownComponent(rsCell);
+rsDropdown.addOption('', 'Select edition…');
+AVAILABLE_EDITIONS.forEach((ed: Edition) => {
+  rsDropdown.addOption(ed.id, ed.label);
+});
+rsDropdown
+  .setValue(this.plugin.settings.rulesetCompendium)
+  .onChange(async (val) => {
+    this.plugin.settings.rulesetCompendium = val;
+    await this.plugin.saveSettings();
+
+    // Live‐update your summary bar:
+    const chosen = AVAILABLE_EDITIONS.find(e => e.id === val);
+    rulesetSpan.textContent = chosen ? chosen.label : '';
+
+    // Clear any existing reference chips:
+    chipsWrapper.empty();
+
+    updateInstallButtons();
+  });
+
+  const searchWrapperEl = refCell.createDiv({ attr: { style: 'text-align:center;' } });
+  const searchComp = new SearchComponent(searchWrapperEl);
+  searchComp.setPlaceholder('Add reference rules…');
+  const suggestionInputEl = searchComp.inputEl;
+  
+  new class extends AbstractInputSuggest<string> {
+	constructor(app: App, inputEl: HTMLInputElement) {
+	  super(app, inputEl);
+	}
+  
+	// 1) Propose edition IDs (minus the one they picked as the main ruleset)
+	getSuggestions(input: string): string[] {
+	  return AVAILABLE_EDITIONS
+		.filter(ed => ed.id !== plugin.settings.rulesetCompendium)            // filter out the chosen ruleset
+		.filter(ed => ed.label.toLowerCase().includes(input.toLowerCase()))     // match on label text
+		.map(ed => ed.id);                                                      // return the ID for each
+	}
+  
+	// 2) Render the human-readable label
+	renderSuggestion(item: string, el: HTMLElement): void {
+	  const ed = AVAILABLE_EDITIONS.find(e => e.id === item)!;
+	  el.createDiv({ text: ed.label });
+	}
+  
+	// 3) When they pick one, store its ID and add a chip
+	selectSuggestion(item: string): void {
+	  if (!plugin.settings.rulesetReference.includes(item)) {
+		plugin.settings.rulesetReference.push(item);
+		plugin.saveSettings();
+		addChip(item);
+	  }
+	  this.close();
+	  suggestionInputEl.value = '';
+	  updateInstallButtons();
+	}
+  }(this.app, suggestionInputEl);
+  
+
+
+
+
+			// ─── Button row ───────────────────────────────────────────────
+			const btnRow1 = card.createEl('div', { cls: 'vv-button-row' });
+			Object.assign(btnRow1.style, {
+			display: 'flex',
+			gap: '0.75em',
+			justifyContent: 'center',
+			marginBottom: '1.5em',
+			});
+
+			const installBtn1 = btnRow1.createEl('button', {
+			text: 'Install Toolkit',
+			cls: 'mod-cta',
+			});
+			installBtn1.onClickEvent(() =>
+			new ConfirmFreshInstallModal(this.app, this.plugin).open()
+			);
+
+			const customBtn1 = btnRow1.createEl('button', {
+			text: 'Custom Install',
+			cls: 'mod-cta',
+			});
+			Object.assign(customBtn1.style, {
 			background: 'none',
 			border: '1px solid var(--interactive-accent)',
 			color: 'var(--text-normal)',
-		  });
-		  
-		  // Only one onClickEvent, calling your modal:
-		  customBtn.onClickEvent(() => {
-			showCustomInstallModal(this.app, this.plugin);
-		  });
-	  
-		// 5) “Skip” link
-		const skipPara = card.createEl('p', { cls: 'vv-skip-link' });
-		// Center it and give it a tiny top margin
-		Object.assign(skipPara.style, {
-		  textAlign: 'center',
-		  marginTop: '0.25em',
-		});
-		skipPara
-		.createEl('a', {
-		  text: 'Already have the Toolkit? Show me the settings →',
-		})
-		.onClickEvent(async () => {
-		  // 1) Create the hidden marker file so "first‐run" never shows again:
-		  const markerPath = '.vvunderlore_installed';
-		  try {
-			// Only write it if it does not exist yet
-			if (!(await this.app.vault.adapter.exists(markerPath))) {
-			  await this.app.vault.create(markerPath, '');
+			});
+			customBtn1.onClickEvent(() => showCustomInstallModal(this.app, this.plugin));
+
+			// ─── Helper to enable/disable the buttons ─────────────────────
+			const updateInstallButtons = () => {
+			const hasRuleset = Boolean(this.plugin.settings.rulesetCompendium);
+			installBtn1.toggleAttribute('disabled', !hasRuleset);
+			customBtn1.toggleAttribute('disabled', !hasRuleset);
+			};
+
+			// 7) Initial call, in case we’re re-rendering
+			updateInstallButtons();
+
+		
+			// 5) “Skip” link
+			const skipPara = card.createEl('p', { cls: 'vv-skip-link' });
+			// Center it and give it a tiny top margin
+			Object.assign(skipPara.style, {
+			textAlign: 'center',
+			marginTop: '0.25em',
+			});
+			skipPara
+			.createEl('a', {
+			text: 'Already have the Toolkit? Show me the settings →',
+			})
+			.onClickEvent(async () => {
+			// 1) Create the hidden marker file so "first‐run" never shows again:
+			const markerPath = '.vvunderlore_installed';
+			try {
+				// Only write it if it does not exist yet
+				if (!(await this.app.vault.adapter.exists(markerPath))) {
+				await this.app.vault.create(markerPath, '');
+				}
+			} catch (e) {
+				console.error('❌ Failed to create marker file:', e);
 			}
-		  } catch (e) {
-			console.error('❌ Failed to create marker file:', e);
-		  }
-	  
-		  // 2) Flip needsInstall to false (so the first‐run card is gone)
-		  this.plugin.settings.needsInstall = false;
-		  await this.plugin.saveSettings();
-	  
-		  // 3) Re‐render the normal settings UI
-		  this.display();
-		});
-	  }
+		
+			// 2) Flip needsInstall to false (so the first‐run card is gone)
+			this.plugin.settings.needsInstall = false;
+			await this.plugin.saveSettings();
+		
+			// 3) Re‐render the normal settings UI
+			this.display();
+			});
+		}
 	  
 	  
 	private versionValueEl: HTMLElement | null = null;
@@ -358,111 +507,12 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 
 		
 
-		/** ─── FIX YOUR VAULT SECTION ─── */
-		const fixSectionWrapper = containerEl.createDiv({ cls: 'vk-section' });
+		/** ─── FIX YOUR VAULT SECTION (collapsible, fixed‐icon) ─── */
+		const fixDetails = containerEl.createEl('details', { cls: 'vk-section' });
 
-		// Header row
-		const fixHeader = fixSectionWrapper.createDiv({ cls: 'vk-section-header' });
-
+		// ─── Replace your old fixHeader with this <summary> ──────────────────────────
+		const fixHeader = fixDetails.createEl('summary', { cls: 'vk-section-header' });
 		Object.assign(fixHeader.style, {
-			display: 'flex',
-			flexDirection: 'column',
-			alignItems: 'stretch',
-			padding: '0.5em 0',
-			borderBottom: '1px solid var(--divider-color)',
-		});
-
-		// Title + description inline
-		const fixTitleBlock = fixHeader.createDiv({
-			attr: { style: 'display: flex; flex-direction: column;' }
-		});
-
-		fixTitleBlock.createEl('h5', { text: 'Fix Your Vault' });
-		fixTitleBlock.createEl('div', {
-			text: 'If files are broken, missing, or misaligned, you can force an update to detect and reset those issues. You can also undo if needed.',
-			cls: 'setting-item-description',
-			attr: { style: 'margin-top: 0.25em;' },
-		});
-
-		// Button + warning row
-		const fixButtonRow = fixSectionWrapper.createDiv();
-		fixButtonRow.style.display = 'flex';
-		fixButtonRow.style.justifyContent = 'space-between';
-		fixButtonRow.style.alignItems = 'center';
-		fixButtonRow.style.marginTop = '0.5em';
-
-		const warningContainer = fixButtonRow.createDiv(); 
-		this.forceWarningEl = warningContainer;
-
-		// Left side: version warning (if mismatch)
-		let installedVersionStr = '';
-		try {
-			const versionFile = await this.plugin.app.vault.adapter.read('.version.json');
-			const parsed = JSON.parse(versionFile);
-			installedVersionStr = (parsed.version ?? '').trim();
-		} catch {
-			installedVersionStr = '';
-		}
-
-		const latestVersionStr = (this.plugin.settings.latestToolkitVersion ?? '').trim();
-
-		console.log("🧪 Comparing versions:", installedVersionStr, latestVersionStr);
-
-		if (installedVersionStr && latestVersionStr && installedVersionStr !== latestVersionStr) {
-			const warn = warningContainer.createEl('div', {
-				text: `⚠️ New version available (${installedVersionStr} → ${latestVersionStr}) — use regular update instead`,
-			});
-			warn.style.fontSize = '0.85em';
-			warn.style.color = 'var(--text-muted)';
-			warn.style.fontStyle = 'italic';
-			warn.setAttr(
-				'title',
-				'Force updating while a new version is available may skip important changes.'
-			);
-		}
-
-
-
-
-		// ➡️ Right side: action buttons
-		const buttonGroup = fixButtonRow.createDiv();
-		buttonGroup.style.display = 'flex';
-		buttonGroup.style.gap = '0.5em';
-
-		buttonGroup.createEl('button', {
-			text: 'Force Update Vault',
-			cls: 'mod-cta'
-		}).onclick = async () => {
-			await this.plugin.forceUpdatePreviewAndConfirm();
-		};
-
-		buttonGroup.createEl('button', {
-			text: 'Undo Update'
-		}).onclick = async () => {
-			await this.plugin.undoForceUpdate();
-		};
-
-		// Timestamp
-		const fixTimestampRow = fixSectionWrapper.createDiv();
-		Object.assign(fixTimestampRow.style, {
-			textAlign: 'right',
-			fontSize: '11px',
-			color: 'var(--text-muted)',
-			marginTop: '0.25em'
-		});
-		fixTimestampRow.textContent = `Last forced: ${
-			this.plugin.settings.lastForceUpdate
-				? new Date(this.plugin.settings.lastForceUpdate).toLocaleString()
-				: 'Not forced yet'
-		}`;
-
-
-		// ───── HIGHLIGHT SECTION ───────────────────────────────────────────────────
-		const highlightDetails = containerEl.createEl('details', { cls: 'vk-section' });
-
-		// 1) Build the <summary> for highlight, matching backup style:
-		const highlightSummary = highlightDetails.createEl('summary', { cls: 'vk-section-header' });
-		Object.assign(highlightSummary.style, {
 		display: 'flex',
 		flexDirection: 'column',
 		alignItems: 'stretch',
@@ -471,8 +521,8 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 		cursor: 'pointer',
 		});
 
-		// 1a) Create the title + icon row (flex row justify space-between):
-		const highlightTitleRow = highlightSummary.createDiv({
+		// ── Create a single flex‐row inside the summary for title+icon ──────────────
+		const fixHeaderRow = fixHeader.createDiv({
 		attr: {
 			style: `
 			display: flex;
@@ -482,107 +532,104 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 		},
 		});
 
-		// 1b) Left side: title + description
-		const hlTitleBlock = highlightTitleRow.createDiv({
+		// ── Left side: title + description block ────────────────────────────────────
+		const fixTitleBlock = fixHeaderRow.createDiv({
 		attr: { style: 'display: flex; flex-direction: column;' }
 		});
-		hlTitleBlock.createEl('h5', { text: 'VVunderlore File Highlighting' });
-		hlTitleBlock.createEl('div', {
-		text: 'Toggle on/off the highlighting of Toolkit-specific files. Also make the highlights cool colors.',
+		fixTitleBlock.createEl('h5', { text: 'Fix Your Vault' });
+		fixTitleBlock.createEl('div', {
+		text: 'Fix and broken, deleted, or misplaced files in your toolkit.',
 		cls: 'setting-item-description',
 		attr: { style: 'margin-top: 0.25em;' },
 		});
 
-		// 1c) Right side: collapsing arrow/icon
-		const hlToggleIcon = highlightTitleRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
-		Object.assign(hlToggleIcon.style, {
+		// ── Right side: static toggle icon (rotates in place only) ──────────────────
+		const fixToggleIcon = fixHeaderRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
+		Object.assign(fixToggleIcon.style, {
 		fontWeight: 'bold',
 		display: 'inline-block',
 		transition: 'transform 0.2s ease',
-		transformOrigin: '50% 50%',
+		transformOrigin: '50% 50%', // Rotate around its own center
 		userSelect: 'none',
-		transform: highlightDetails.open ? 'rotate(0deg)' : 'rotate(180deg)',
+		transform: fixDetails.open ? 'rotate(0deg)' : 'rotate(180deg)',
 		});
-
-		// 1d) Make the icon rotate when the <details> opens/closes:
-		highlightDetails.ontoggle = () => {
-		hlToggleIcon.style.transform = highlightDetails.open ? 'rotate(0deg)' : 'rotate(180deg)';
+		fixDetails.ontoggle = () => {
+		fixToggleIcon.style.transform = fixDetails.open ? 'rotate(0deg)' : 'rotate(180deg)';
 		};
 
-		// 2) Create the body container (indented, same as backup)
-		const highlightBody = highlightDetails.createDiv({ cls: 'vk-section-body' });
-		highlightBody.style.paddingLeft = '1em';
+		// ─── Body (same as before, just indented under <details>) ───────────────────
+		const fixBody = fixDetails.createDiv({ cls: 'vk-section-body' });
+		fixBody.style.paddingLeft = '1em';
 
-		// 3) “Enable Highlight” toggle as a Setting inside highlightBody:
-		new Setting(highlightBody)
-		.setName('Enable File/Folder Highlighting')
-		.setDesc('Any file/folder installed by VVunderlore will have this background.')
-		.addToggle(toggle => {
-			toggle
-			.setValue(this.plugin.settings.highlightEnabled)
-			.onChange(async (enabled) => {
-				this.plugin.settings.highlightEnabled = enabled;
-				await this.plugin.saveSettings();
+		// ── Button + warning row ───────────────────────────────────────────────────
+		const fixButtonRow = fixBody.createDiv();
+		fixButtonRow.style.display = 'flex';
+		fixButtonRow.style.justifyContent = 'space-between';
+		fixButtonRow.style.alignItems = 'center';
+		fixButtonRow.style.marginTop = '0.5em';
 
-				if (enabled) {
-				this.plugin.enableHighlight();
-				} else {
-				this.plugin.disableHighlight();
-				}
+		const warningContainer = fixButtonRow.createDiv();
+		this.forceWarningEl = warningContainer;
 
-				// Re‐render the color pickers whenever the toggle changes:
-				renderHighlightColorPickers();
-			});
-		});
-
-		// 4) Wrapper for Light/Dark color pickers:
-		const colorPickerWrapper = highlightBody.createDiv();
-
-		// 5) A function to render or clear the two ColorPicker settings:
-		const renderHighlightColorPickers = () => {
-		colorPickerWrapper.empty();
-
-		if (!this.plugin.settings.highlightEnabled) {
-			return; // do not show pickers if highlighting is disabled
+		let installedVersionStr = '';
+		try {
+		const versionFile = await this.plugin.app.vault.adapter.read('.version.json');
+		const parsed = JSON.parse(versionFile);
+		installedVersionStr = (parsed.version ?? '').trim();
+		} catch {
+		installedVersionStr = '';
 		}
 
-		// 5a) Light mode color picker
-		new Setting(colorPickerWrapper)
-			.setName('Light Mode Highlight Color')
-			.setDesc('Choose the background color for files/folders in Light mode.')
-			.addColorPicker(picker => {
-			picker
-				.setValue(this.plugin.settings.highlightColorLight)
-				.onChange(async (newColor) => {
-				this.plugin.settings.highlightColorLight = newColor;
-				await this.plugin.saveSettings();
+		const latestVersionStr = (this.plugin.settings.latestToolkitVersion ?? '').trim();
 
-				// Re‐inject CSS so the new color takes effect immediately:
-				this.plugin.disableHighlight();
-				this.plugin.enableHighlight();
-				});
-			});
+		console.log("🧪 Comparing versions:", installedVersionStr, latestVersionStr);
 
-		// 5b) Dark mode color picker
-		new Setting(colorPickerWrapper)
-			.setName('Dark Mode Highlight Color')
-			.setDesc('Choose the background color for files/folders in Dark mode.')
-			.addColorPicker(picker => {
-			picker
-				.setValue(this.plugin.settings.highlightColorDark)
-				.onChange(async (newColor) => {
-				this.plugin.settings.highlightColorDark = newColor;
-				await this.plugin.saveSettings();
+		if (installedVersionStr && latestVersionStr && installedVersionStr !== latestVersionStr) {
+		const warn = warningContainer.createEl('div', {
+			text: `⚠️ New version available (${installedVersionStr} → ${latestVersionStr}) — use regular update instead`,
+		});
+		warn.style.fontSize = '0.85em';
+		warn.style.color = 'var(--text-muted)';
+		warn.style.fontStyle = 'italic';
+		warn.setAttr(
+			'title',
+			'Force updating while a new version is available may skip important changes.'
+		);
+		}
 
-				// Re‐inject CSS so the new color takes effect immediately:
-				this.plugin.disableHighlight();
-				this.plugin.enableHighlight();
-				});
-			});
+		// ➡️ Right side: action buttons
+		const buttonGroup = fixButtonRow.createDiv();
+		buttonGroup.style.display = 'flex';
+		buttonGroup.style.gap = '0.5em';
+
+		buttonGroup.createEl('button', {
+		text: 'Force Update Vault',
+		cls: 'mod-cta'
+		}).onclick = async () => {
+		await this.plugin.forceUpdatePreviewAndConfirm();
 		};
 
-		// 6) Call once on initial render so that if highlightEnabled === true, the pickers show up.
-		renderHighlightColorPickers();
+		buttonGroup.createEl('button', {
+		text: 'Undo Update'
+		}).onclick = async () => {
+		await this.plugin.undoForceUpdate();
+		};
+
+		// ── Timestamp row ──────────────────────────────────────────────────────────
+		const fixTimestampRow = fixBody.createDiv();
+		Object.assign(fixTimestampRow.style, {
+		textAlign: 'right',
+		fontSize: '11px',
+		color: 'var(--text-muted)',
+		marginTop: '0.25em'
+		});
+		fixTimestampRow.textContent = `Last forced: ${
+		this.plugin.settings.lastForceUpdate
+			? new Date(this.plugin.settings.lastForceUpdate).toLocaleString()
+			: 'Not forced yet'
+		}`;
+
+
 
 		// ─── BACKUP SECTION ────────────────────────────────────
 		const backupDetails = containerEl.createEl('details', { cls: 'vk-section' });
@@ -669,12 +716,42 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 			})
 		);
 
+		new Setting(backupBody)
+		.setName('Open Backups Folder')
+		.setDesc('Open the backups folder on disk. MacOS: Cant see it? Hit Shift+Cmd+(period).')
+		.addButton(b =>
+		  b
+			.setButtonText('Open Folder')
+			.onClick(async () => {
+			  try {
+
+				const vaultBasePath: string = (this.plugin.app.vault.adapter as any).getBasePath();
+
+				const backupFolderPath = path.join(
+				  vaultBasePath,
+				  '.vault-backups'
+				);
+
+				const { shell } = (window as any).require('electron');
+				const result = await shell.openPath(backupFolderPath);
+				if (typeof result === 'string' && result.length > 0) {
+				  console.error('❌ shell.openPath error:', result);
+				  new Notice('Could not open backups folder. See console.');
+				}
+			  } catch (err) {
+				console.error('❌ Could not open backups folder:', err);
+				new Notice('Could not open backups folder. See console.');
+			  }
+			})
+		);
 		backupBody.createEl('div', {
 			attr: {
 			  style: 'border-top: 1px solid var(--divider-color); margin-top: 1.5em;'
 			}
 		  });
 
+
+		  
 		// ──────────────── CUSTOM UPDATES SECTION ────────────────
 		const customizationDetails = containerEl.createEl('details', { cls: 'vk-section' });
 
@@ -688,7 +765,6 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 		cursor: 'pointer',
 		});
 
-		// Title row with h5 + description (left) and VV icon (right)
 		const titleRow = customizationSummary.createDiv({
 		attr: {
 			style: `
@@ -700,25 +776,19 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 		},
 		});
 
-		// Left block: h5 + description
 		const customizationTitleBlock = titleRow.createDiv({
 		attr: { style: 'display: flex; flex-direction: column;' }
 		});
 
 		const h5 = customizationTitleBlock.createEl('h5');
-		h5.appendText('Custom Updates – ');
-
-		const redSpan = h5.createSpan({ text: 'Advanced Users Only' });
-		redSpan.style.color = 'var(--text-error)'; // or '#e03131' for a bolder red
-
+		h5.appendText('Custom File Management ');
 
 		customizationTitleBlock.createEl('div', {
-		text: 'Use these controls to skip updates on certain files or remap relocated Toolkit files so they can update.',
+		text: 'Skip updates on certain files or remap relocated Toolkit files so they can update.',
 		cls: 'setting-item-description',
 		attr: { style: 'margin-top: 0.25em;' },
 		});
 
-		// Right: VV icon aligned to bottom
 		const customVvIcon = titleRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
 
 		Object.assign(customVvIcon.style, {
@@ -812,8 +882,10 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 			contentCell.colSpan = 1;
 			contentCell.style.display = 'flex';
 			contentCell.style.justifyContent = 'space-between';
+			contentCell.style.paddingLeft = '4em';
 			contentCell.style.alignItems = 'center';
 			contentCell.style.gap = '1em';
+			contentCell.style.fontWeight = 'bold';
 
 			contentCell.createSpan({ text: entry.manifestKey });
 
@@ -947,11 +1019,258 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 			}
 		});
 
+		// ───── HIGHLIGHT SECTION ───────────────────────────────────────────────────
+		const highlightDetails = containerEl.createEl('details', { cls: 'vk-section' });
+
+		// 1) Build the <summary> for highlight, matching backup style:
+		const highlightSummary = highlightDetails.createEl('summary', { cls: 'vk-section-header' });
+		Object.assign(highlightSummary.style, {
+		display: 'flex',
+		flexDirection: 'column',
+		alignItems: 'stretch',
+		padding: '0.5em 0',
+		borderBottom: '1px solid var(--divider-color)',
+		cursor: 'pointer',
+		});
+
+		// 1a) Create the title + icon row (flex row justify space-between):
+		const highlightTitleRow = highlightSummary.createDiv({
+		attr: {
+			style: `
+			display: flex;
+			justify-content: space-between;
+			align-items: flex-end;
+			`,
+		},
+		});
+
+		// 1b) Left side: title + description
+		const hlTitleBlock = highlightTitleRow.createDiv({
+		attr: { style: 'display: flex; flex-direction: column;' }
+		});
+		hlTitleBlock.createEl('h5', { text: 'File Highlights' });
+		hlTitleBlock.createEl('div', {
+		text: 'Toggle on/off the highlighting of Toolkit-specific files. Also make the highlights cool colors.',
+		cls: 'setting-item-description',
+		attr: { style: 'margin-top: 0.25em;' },
+		});
+
+		// 1c) Right side: collapsing arrow/icon
+		const hlToggleIcon = highlightTitleRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
+		Object.assign(hlToggleIcon.style, {
+		fontWeight: 'bold',
+		display: 'inline-block',
+		transition: 'transform 0.2s ease',
+		transformOrigin: '50% 50%',
+		userSelect: 'none',
+		transform: highlightDetails.open ? 'rotate(0deg)' : 'rotate(180deg)',
+		});
+
+		// 1d) Make the icon rotate when the <details> opens/closes:
+		highlightDetails.ontoggle = () => {
+		hlToggleIcon.style.transform = highlightDetails.open ? 'rotate(0deg)' : 'rotate(180deg)';
+		};
+
+		// 2) Create the body container (indented, same as backup)
+		const highlightBody = highlightDetails.createDiv({ cls: 'vk-section-body' });
+		highlightBody.style.paddingLeft = '1em';
+
+		// 3) “Enable Highlight” toggle as a Setting inside highlightBody:
+		new Setting(highlightBody)
+		.setName('Enable File/Folder Highlighting')
+		.setDesc('Any file/folder installed by VVunderlore will have this background.')
+		.addToggle(toggle => {
+			toggle
+			.setValue(this.plugin.settings.highlightEnabled)
+			.onChange(async (enabled) => {
+				this.plugin.settings.highlightEnabled = enabled;
+				await this.plugin.saveSettings();
+
+				if (enabled) {
+				this.plugin.enableHighlight();
+				} else {
+				this.plugin.disableHighlight();
+				}
+
+				// Re‐render the color pickers whenever the toggle changes:
+				renderHighlightColorPickers();
+			});
+		});
+
+		// 4) Wrapper for Light/Dark color pickers:
+		const colorPickerWrapper = highlightBody.createDiv();
+
+		// 5) A function to render or clear the two ColorPicker settings:
+		const renderHighlightColorPickers = () => {
+		colorPickerWrapper.empty();
+
+		if (!this.plugin.settings.highlightEnabled) {
+			return; // do not show pickers if highlighting is disabled
+		}
+
+		// 5a) Light mode color picker
+		new Setting(colorPickerWrapper)
+			.setName('Light Mode Highlight Color')
+			.setDesc('Choose the background color for files/folders in Light mode.')
+			.addColorPicker(picker => {
+			picker
+				.setValue(this.plugin.settings.highlightColorLight)
+				.onChange(async (newColor) => {
+				this.plugin.settings.highlightColorLight = newColor;
+				await this.plugin.saveSettings();
+
+				// Re‐inject CSS so the new color takes effect immediately:
+				this.plugin.disableHighlight();
+				this.plugin.enableHighlight();
+				});
+			});
+
+		// 5b) Dark mode color picker
+		new Setting(colorPickerWrapper)
+			.setName('Dark Mode Highlight Color')
+			.setDesc('Choose the background color for files/folders in Dark mode.')
+			.addColorPicker(picker => {
+			picker
+				.setValue(this.plugin.settings.highlightColorDark)
+				.onChange(async (newColor) => {
+				this.plugin.settings.highlightColorDark = newColor;
+				await this.plugin.saveSettings();
+
+				// Re‐inject CSS so the new color takes effect immediately:
+				this.plugin.disableHighlight();
+				this.plugin.enableHighlight();
+				});
+			});
+		};
+
+		// 6) Call once on initial render so that if highlightEnabled === true, the pickers show up.
+		renderHighlightColorPickers();
+
 
 		// ─── INITIAL DRAW ───────────────────────────────────────────────────────
 		renderSkipTable();
 		renderRemapPanel();
 
+
+		//REMOVE DEMO FILES
+		// ─── REMOVE DEMO FILES (updated) ────────────────────────────────────────
+
+// 1) Create a Setting row, but immediately strip off its default top‐border:
+const removeDemoSetting = new Setting(containerEl);
+(removeDemoSetting.settingEl as HTMLElement).style.borderTop = 'none';
+
+removeDemoSetting
+  .setName('Remove Demo Files')
+  .setDesc('Delete every “optional” demo file and folder from your vault.')
+  .addButton((button) =>
+    button
+      .setButtonText('Remove Demo Files')
+
+      .onClick(async () => {
+        const optionalFileEntries = this.plugin.manifestCache.files.filter((f) => f.optional);
+        const optionalFolderEntries = this.plugin.manifestCache.folders.filter((f) => f.optional);
+
+        const totalCountFiles = optionalFileEntries.length;
+        const totalCountFolders = optionalFolderEntries.length;
+        const totalCount = totalCountFiles + totalCountFolders;
+
+        if (totalCount === 0) {
+          new Notice('No “optional” demo files or folders to remove.');
+          return;
+        }
+
+        // --- 2) Ask for confirmation in a small Modal ---
+        const userConfirmed = await new Promise<boolean>((resolve) => {
+          const confirmModal = new class extends Modal {
+            constructor(app: App) {
+              super(app);
+            }
+            onOpen() {
+              this.contentEl.empty();
+              this.contentEl.createEl('h2', { text: 'Confirm Removal' });
+              this.contentEl.createEl('p', {
+                text: `This will permanently delete ${totalCountFiles} file(s) and ${totalCountFolders} folder(s). Continue?`,
+              });
+
+              const btnRow = this.contentEl.createEl('div');
+              Object.assign(btnRow.style, {
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '0.5em',
+                marginTop: '1.5em',
+              });
+
+              btnRow.createEl('button', { text: 'Cancel' }).onclick = () => {
+                resolve(false);
+                this.close();
+              };
+
+              btnRow.createEl('button', { text: 'Yes, Remove', cls: 'mod-danger' }).onclick = () => {
+                resolve(true);
+                this.close();
+              };
+            }
+            onClose() {
+              this.contentEl.empty();
+            }
+          }(this.app);
+
+          confirmModal.open();
+        });
+
+        if (!userConfirmed) {
+          return; // user clicked “Cancel”
+        }
+
+        // --- 3) Delete optional files one by one ---
+        let filesDeleted = 0;
+        for (const fileEntry of optionalFileEntries) {
+          // 3a) Respect any remapping in customPaths
+          const mapped = this.plugin.settings.customPaths.find((c) => c.manifestKey === fileEntry.key);
+          const vaultPath = mapped?.vaultPath ?? fileEntry.path;
+
+          // 3b) If it actually exists, remove it
+          if (await this.app.vault.adapter.exists(vaultPath)) {
+            try {
+              await this.app.vault.adapter.remove(vaultPath);
+              filesDeleted++;
+            } catch (err) {
+              console.error(`Failed to delete optional file ${vaultPath}`, err);
+            }
+          }
+        }
+
+        // --- 4) Delete optional folders recursively ---
+        let foldersDeleted = 0;
+        for (const folderEntry of optionalFolderEntries) {
+          const mapped = this.plugin.settings.customPaths.find((c) => c.manifestKey === folderEntry.key);
+          const vaultFolderPath = mapped?.vaultPath ?? folderEntry.path;
+
+          if (await this.app.vault.adapter.exists(vaultFolderPath)) {
+            try {
+              // The second argument `true` ensures recursive delete
+              await this.app.vault.adapter.rmdir(vaultFolderPath, true);
+              foldersDeleted++;
+            } catch (err) {
+              console.error(`Failed to delete optional folder ${vaultFolderPath}`, err);
+            }
+          }
+        }
+
+        // --- 5) Clean up any “customPaths” entries for optional items ---
+        this.plugin.settings.customPaths = this.plugin.settings.customPaths.filter((c) => {
+          // If this mapping’s manifestKey was optional, drop it
+          const isOptFile = optionalFileEntries.some((f) => f.key === c.manifestKey);
+          const isOptFolder = optionalFolderEntries.some((f) => f.key === c.manifestKey);
+          return !isOptFile && !isOptFolder;
+        });
+        await this.plugin.saveSettings();
+
+        // --- 6) Show a notice and re-render the settings page ---
+        new Notice(`Deleted ${filesDeleted} file(s) and ${foldersDeleted} folder(s).`);
+        this.display();
+      })
+  );
 
 
 
@@ -962,7 +1281,6 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 		fontSize: '0.85em',
 		color: 'var(--text-muted)',
 		marginTop: '2em',
-		borderTop: 'none' // 👈 explicitly remove any top border
 		});
 		footer.createEl('span', {
 			text: `VVunderlore Toolkit Plugin v${this.plugin.manifest.version} • `

@@ -17,6 +17,7 @@ const context = await esbuild.context({
 	},
 	entryPoints: ["src/main.ts"],
 	bundle: true,
+	platform: "node",
 	external: [
 		"obsidian",
 		"electron",
@@ -39,6 +40,10 @@ const context = await esbuild.context({
 	treeShaking: true,
 	outfile: "main.js",
 	minify: prod,
+	loader: {
+    '.ts': 'ts',
+    '.png': 'dataurl', 
+  },
 });
 
 if (prod) {
@@ -46,4 +51,4 @@ if (prod) {
 	process.exit(0);
 } else {
 	await context.watch();
-}
+} 

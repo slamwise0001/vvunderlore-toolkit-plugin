@@ -43,6 +43,7 @@
 .vk-section {
   margin: 0 !important;
   padding: 0 !important;
+  padding-bottom: .5em !important;
 }
 
 
@@ -174,4 +175,9 @@
 .setting-item-description {
   font-size: var(--font-ui-smaller);
   color: var(--text-muted);
+}
+
+.vvunderlore-first-run .setting-item-control .dropdown-fill {
+  min-width: 200px;
+  max-width: 300px;
 }

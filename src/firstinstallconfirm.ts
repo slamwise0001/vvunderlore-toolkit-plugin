@@ -1,7 +1,8 @@
 // src/firstinstallconfirm.ts
 import { App, Modal, ButtonComponent, Notice } from 'obsidian';
 import type VVunderloreToolkitPlugin from './main';
-import { InstallingModal } from './main';
+import { InstallOptions } from './main';
+import { importRulesetData } from "./rulesetInstaller";
 
 export class ConfirmFreshInstallModal extends Modal {
   private plugin: VVunderloreToolkitPlugin;
@@ -14,7 +15,6 @@ export class ConfirmFreshInstallModal extends Modal {
   onOpen() {
     this.contentEl.empty();
 
-    // Title
     this.titleEl.setText("⚠️ Warning: Fresh Vault Recommended");
 
     // Disclaimer text
@@ -53,29 +53,45 @@ export class ConfirmFreshInstallModal extends Modal {
       .setButtonText("Install!!")
       .setCta() // makes it look like a primary action
       .onClick(async () => {
-        // disable both buttons to prevent double‐clicks
-        buttonRow.querySelectorAll('button').forEach((b) =>
-          (b as HTMLButtonElement).setAttribute("disabled", ""),
-        );
-
-        // 1) Immediately close this confirm‐dialog
+        // close this modal immediately
         this.close();
+  
+        const opts: InstallOptions = {
+          compendium: this.plugin.settings.rulesetCompendium,
+          references: [...this.plugin.settings.rulesetReference],
+        };
 
-        // 2) Open the "Installing…" placeholder
-        const installing = new InstallingModal(this.app);
-        installing.open();
-
+        // let the user know we're working
+        new Notice("⏳ Installing toolkit…");
+  
+        // grab the selections from settings
+        const compendium = this.plugin.settings.rulesetCompendium;
+        const references = [...this.plugin.settings.rulesetReference];
+  
         try {
-          // 3) Run the full‐install routine (awaits until done)
-          await this.plugin.installFullToolkit();
+          // run your new installer
+          await this.plugin.installFullToolkit({ compendium, references });
+
+
+          if (compendium) {
+            await importRulesetData({
+              app: this.app,
+              editionKey: compendium,
+              targetPath: "Compendium"
+            });
+          }
         } catch (err) {
-          console.error("❌ installFullToolkit() threw:", err);
-          new Notice("❌ Toolkit install failed – see console");
-        } finally {
-          // 4) Close "Installing…" placeholder no matter what
-          installing.close();
+          console.error("❌ installToolkit() failed:", err);
+          new Notice("❌ Toolkit installation failed. See console.");
         }
-      });
+  
+        // mark first‐run complete so the card never shows again
+        this.plugin.settings.needsInstall = false;
+        await this.plugin.saveSettings();
+  
+        // re‐draw the settings UI now that we're past first‐run
+        this.plugin.settingsTab.display();
+      })
   }
 
   onClose() {
