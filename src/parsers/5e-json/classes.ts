@@ -324,7 +324,7 @@ if (csGroup && slotGroup) {
 }
 
 
-  // ─── Subclasses ───
+// ─── Subclasses ───
 const subs = Array.isArray(json.subclass) ? json.subclass : [];
 const subclassFeatures = Array.isArray(json.subclassFeature)
   ? json.subclassFeature
@@ -334,103 +334,184 @@ for (const sc of subs) {
   const subclassName = sc.name;
   const subLines: string[] = [];
 
-  // Intro entry (level 3 feature description)
-  const introEntry = subclassFeatures.find((f: any) =>
+  // ─── Header metadata ───
+  subLines.push(`# ${subclassName}`);
+  subLines.push(`**Parent Class:** [[${className}]]`);
+  if (sc.source) subLines.push(`**Source:** ${sc.source}`);
+  subLines.push(``); // blank line
+
+  // ─── Intro entry (level 3 feature description) ───
+  const intro = subclassFeatures.find((f: any) =>
     f.name === sc.name &&
     f.level === 3 &&
     f.subclassShortName === sc.shortName &&
     f.subclassSource === sc.source
   );
-  if (introEntry?.entries?.length) {
-    subLines.push(formatEntry(introEntry.entries));
+  if (intro?.entries?.length) {
+    const introText = Array.isArray(intro.entries)
+      ? intro.entries.map((e: any) =>
+          typeof e === "string" ? replace5eTags(e) : formatEntry(e)
+        ).join("\n\n")
+      : formatEntry(intro.entries);
+    subLines.push(introText, ``);
   }
 
-  // Gather features by level
-  const featuresByLevel: Record<number, any[]> = {};
-  for (const feat of subclassFeatures) {
-    if (
-      feat.subclassShortName === sc.shortName &&
-      feat.subclassSource === sc.source &&
-      feat.className === className
-    ) {
-      const lvl = feat.level ?? 0;
-      if (!featuresByLevel[lvl]) featuresByLevel[lvl] = [];
-      featuresByLevel[lvl].push(feat);
-    }
-  }
-
-  // Header metadata
-  subLines.push(`# ${subclassName}`);
-  subLines.push(`**Parent Class:** [[${className}]]`);
-  if (sc.source) subLines.push(`**Source:** ${sc.source}`);
-
-  // Optional subclass progression table
-  const progGroups = sc.subclassTableGroups ?? [];
-  if (progGroups.length) {
-    const allLabelsSet = new Set<string>();
-    const rowMaps: Record<number, Record<string, string>> = {};
-
-    for (const group of progGroups) {
-      const labels = (group.colLabels ?? []).map(replace5eTags);
-      const rows = Array.isArray(group.rows)
-        ? group.rows
-        : Array.isArray(group.rowsSpellProgression)
-          ? group.rowsSpellProgression
-          : [];
-
-      for (let i = 0; i < rows.length; i++) {
-        if (!rowMaps[i+1]) rowMaps[i+1] = {};
-        rows[i].forEach((cell: any, j: number) => {
-          const label = labels[j];
-          if (!label) return;
-          allLabelsSet.add(label);
-          rowMaps[i+1][label] = typeof cell === "object" && cell !== null && "value" in cell
-            ? String(cell.value)
-            : String(cell ?? "");
-        });
+  // ─── Optional‐feature block ───
+  const code = (Object.entries(OPT_FEATURE_TYPE_TO_FULL) as [string,string][])
+    .find(([, full]) =>
+      full.toLowerCase().includes(subclassName.toLowerCase())
+    )?.[0];
+  if (code) {
+    const matches = optionalFeatures.filter(of =>
+      Array.isArray(of.featureType) && of.featureType.includes(code)
+    );
+    if (matches.length) {
+      subLines.push(`## ${subclassName} Optional Features`);
+      for (const feat of matches) {
+        for (const entry of feat.entries) {
+          const txt = typeof entry === "string"
+            ? replace5eTags(entry)
+            : formatEntry(entry);
+          subLines.push(`**${feat.name}:** ${txt}`);
+        }
+        subLines.push(``);
       }
     }
+  }
 
-    const allLabels = Array.from(allLabelsSet);
-    const mergedLabels = ["Level", ...allLabels];
-    const mergedRows: string[][] = [];
-
-    for (let lvl = 1; lvl <= 20; lvl++) {
-      const row = rowMaps[lvl] ?? {};
-      mergedRows.push([String(lvl), ...allLabels.map(label => row[label] ?? "")]);
+  // ─── Subclass progression table ───
+  const prog = sc.subclassTableGroups ?? [];
+  if (prog.length) {
+    const labels = new Set<string>();
+    const rowsMap: Record<number, Record<string,string>> = {};
+    for (const g of prog) {
+      const cols = (g.colLabels ?? []).map(replace5eTags);
+      const rows = Array.isArray(g.rows)
+        ? g.rows
+        : Array.isArray(g.rowsSpellProgression)
+          ? g.rowsSpellProgression
+          : [];
+      rows.forEach((r: any, i: any) => {
+        const lvl = i + 1;
+        rowsMap[lvl] ??= {};
+        r.forEach((c: any, j: number) => {
+          const lab = cols[j];
+          if (!lab) return;
+          labels.add(lab);
+          rowsMap[lvl][lab] = typeof c === "object" && c !== null && "value" in c
+            ? String(c.value)
+            : String(c ?? "");
+        });
+      });
     }
-
+    const hdrs = Array.from(labels);
     subLines.push(`## Subclass Progression`);
     subLines.push(renderMarkdownTable({
       type:      "table",
       caption:   "",
-      colLabels: mergedLabels,
-      rows:      mergedRows,
+      colLabels: ["Level", ...hdrs],
+      rows:      Array.from({ length: 20 }, (_, i) => {
+        const lvl = i + 1;
+        return [String(lvl), ...hdrs.map(h => rowsMap[lvl]?.[h] ?? "")];
+      })
     }));
   }
 
-  // Detailed level-by-level features
-  for (const lvl of Object.keys(featuresByLevel).map(Number).sort((a, b) => a - b)) {
-    subLines.push(`---`);
-    subLines.push(`## Level ${lvl}`);
-    for (const feat of featuresByLevel[lvl]) {
-      subLines.push(`### ${feat.name}`);
-      const desc = Array.isArray(feat.entries)
-        ? feat.entries.map(formatEntry).join("\n\n")
-        : formatEntry(feat.entries);
-      subLines.push(desc);
-    }
+// ─── Detailed level‐by‐level features ───
+const featsByLvl: Record<number, any[]> = {};
+for (const f of subclassFeatures) {
+  if (
+    f.subclassShortName === sc.shortName &&
+    f.subclassSource === sc.source &&
+    f.className === className
+  ) {
+    const lvl = f.level ?? 0;
+    ;(featsByLvl[lvl] ??= []).push(f);
   }
+}
 
-  // Clean up excessive blank lines
-  let subclassContent = subLines.join("\n\n")
+for (const lvl of Object.keys(featsByLvl).map(Number).sort((a,b)=>a-b)) {
+  subLines.push(`---`, `## Level ${lvl}`);
+
+  for (const f of featsByLvl[lvl]) {
+  subLines.push(`### ${f.name}`);
+
+  // Walk each entry for this feature
+  for (const ent of Array.isArray(f.entries) ? f.entries : [f.entries]) {
+    // 1) Plain paragraph entries
+    if (typeof ent === "string") {
+      subLines.push(replace5eTags(ent));
+      continue;
+    }
+
+    // 2) If it's the "Maneuvers" entries‐block, inject your list here
+    if (ent.type === "entries" && /^Maneuvers$/i.test(ent.name)) {
+      // first print the sub‐heading and any text it had
+      subLines.push(`##### ${ent.name}`);
+      for (const txt of Array.isArray(ent.entries) ? ent.entries : [ent.entries]) {
+        subLines.push(typeof txt === "string"
+          ? replace5eTags(txt)
+          : formatEntry(txt));
+      }
+
+      // now inject the full maneuver definitions for this subclass
+      const code = (Object.entries(OPT_FEATURE_TYPE_TO_FULL) as [string,string][])
+        .find(([, full]) =>
+          full.toLowerCase().includes(subclassName.toLowerCase())
+        )?.[0];
+      if (code) {
+        const matches = optionalFeatures.filter(of =>
+          Array.isArray(of.featureType) && of.featureType.includes(code)
+        );
+        for (const featDef of matches) {
+          for (const sub of featDef.entries) {
+            const line = typeof sub === "string"
+              ? replace5eTags(sub)
+              : formatEntry(sub);
+            subLines.push(`**${featDef.name}:** ${line}`);
+          }
+          subLines.push(""); // spacer
+        }
+      }
+      continue;
+    }
+
+    // 3) Any other nested "entries" blocks
+    if (ent.type === "entries" && ent.name) {
+      subLines.push(`##### ${ent.name}`);
+      for (const e2 of Array.isArray(ent.entries) ? ent.entries : [ent.entries]) {
+        subLines.push(formatEntry(e2));
+      }
+      continue;
+    }
+
+    // 4) Insets
+    if (ent.type === "inset" && ent.name) {
+      const inner = Array.isArray(ent.entries) ? ent.entries : [ent.entries];
+      subLines.push(`> **${ent.name}**`);
+      inner.forEach((e2: any) => subLines.push(`> ${formatEntry(e2)}`));
+      continue;
+    }
+
+    // 5) Fallback
+    const fb = formatEntry(ent);
+    if (fb) subLines.push(fb);
+  }
+  }
+}
+
+
+  // ─── Clean up & push ───
+  const subclassContent = subLines
+    .join("\n\n")
     .replace(/\n{3,}/g, "\n\n");
-
   subclassFiles.push({
     path: `Classes/${className}/Subclasses/${subclassName}.md`,
     content: subclassContent
   });
 }
+
+
 
 // ─── Subclasses Summary ───
 if (subs.length) {
@@ -477,54 +558,65 @@ for (const lvl of levels) {
 
     for (const ent of entries) {
       // 1) Plain-text paragraph
-      if (typeof ent === "string") {
-        lines.push(formatEntry(ent));
-        continue;
-      }
+        if (typeof ent === "string") {
+          const txt = formatEntry(ent).trim();
+          // skip any pure-brace lines
+          if (txt === "{" || txt === "}") continue;
+          lines.push(txt);
+          continue;
+        }
 
-      // 2) “options” block → optional “Choose N” + bullet list
-
+        if (ent.type === "list" && Array.isArray(ent.items)) {
+    for (const item of ent.items) {
+      lines.push(`- ${replace5eTags(item)}`);
+    }
+    continue;
+  }
       // ─── inside your for (const ent of entries) loop ───
       if (ent.type === "options") {
-        // optional “Choose N” header, bolded
-        if (ent.count) {
-          lines.push("");
-          lines.push(`**Choose ${ent.count} of the following options:**`);
-          lines.push("");
-        }
+  if (ent.count) {
+    lines.push("");
+    lines.push(`**Choose ${ent.count} of the following options:**`);
+    lines.push("");
+  }
 
-        // loop over each placeholder reference
-        for (const optRef of Array.isArray(ent.entries) ? ent.entries : [ent.entries]) {
-          if (optRef.type === "refOptionalfeature") {
-            const [optName, optSrc] = optRef.optionalfeature.split("|");
-            const featDef = optionalFeatures.find(
-              f => f.name === optName && (!optSrc || f.source === optSrc)
-            );
+  for (const optRef of Array.isArray(ent.entries) ? ent.entries : [ent.entries]) {
+    if (optRef.type === "refOptionalfeature") {
+      const [optName, optSrc] = optRef.optionalfeature.split("|");
+      const featDef = optionalFeatures.find(
+        f => f.name === optName && (!optSrc || f.source === optSrc)
+      );
 
-            if (featDef) {
-              // inline every text entry as “**Name:** description”
-              for (const sub of featDef.entries) {
-                if (typeof sub === "string") {
-                  lines.push(`- **${featDef.name}:** ${replace5eTags(sub)}`);
-                } else {
-                  lines.push(`- **${featDef.name}:** ${formatEntry(sub)}`);
-                }
-              }
-              lines.push(""); // blank line after each feature block
-            } else {
-              // fallback if not found
-              lines.push(`**${optName}:**`);
-            }
+      if (featDef) {
+        // loop through each line in the feature’s entries[]
+        featDef.entries.forEach((subEntry: any, idx: any) => {
+          // render text
+          const text = typeof subEntry === "string"
+            ? replace5eTags(subEntry)
+            : formatEntry(subEntry);
 
+          if (idx === 0) {
+            // first line: bolded name + description
+            lines.push(`- **${featDef.name}:** ${text}`);
           } else {
-            // any non‐refOptionalfeature fallback
-            const txt = formatEntry(optRef);
-            if (txt) lines.push(`- ${txt}`);
+            // subsequent lines: nested bullet
+            lines.push(`  - ${text}`);
           }
-        }
-
-        continue;
+        });
+        lines.push(""); // blank line after each feature block
+      } else {
+        // fallback if not found
+        lines.push(`**${optName}:**`);
       }
+    } else {
+      // non‐refOptionalfeature fallback
+      const txt = formatEntry(optRef);
+      if (txt) lines.push(`- ${txt}`);
+    }
+  }
+
+  continue;
+}
 
 
       // 3) Standalone refOptionalfeature

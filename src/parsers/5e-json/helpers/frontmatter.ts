@@ -13,6 +13,15 @@ export function cap(str: any): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+export const ABILITY_FULL: Record<string,string> = {
+  str: "Strength",
+  dex: "Dexterity",
+  con: "Constitution",
+  int: "Intelligence",
+  wis: "Wisdom",
+  cha: "Charisma",
+};
+
 export const SIZE_MAP: Record<string, string> = {
   T: "Tiny",
   S: "Small",
@@ -75,6 +84,7 @@ export const FM_FIELDS = {
   SOURCE:             "source",
   SPECIES:            "species",
   SPEED:              "speed",
+  SPELL_CAST_MOD:     "Spell Cast Mod",
   SPELL_RANGE:        "Range",
   STEALTH_DISADVANTAGE: "stealthDisadvantage",
   STRENGTH:           "strength",
@@ -288,61 +298,68 @@ export const ALL_FIELD_DEFS: FieldDef[] = [
     conv: unifiedWeaponProfs
   },
   { callSign: "TOOL_PROFICIENCIES",   jsonKey: ["toolProficiencies", "toolProfs", "startingProficiencies"], conv: unifiedToolProfs },
-{
-  callSign: "TOOL_CHOICE_LIST",
-  jsonKey: ["toolProficiencies", "toolProfs", "startingProficiencies"],
-  conv: (raw: any) => {
-    const arr = Array.isArray(raw)
-      ? raw
-      : Array.isArray(raw?.toolProficiencies)
-      ? raw.toolProficiencies
-      : Array.isArray(raw?.tools)
-      ? raw.tools
-      : [];
-    const choice = arr.find((e: any) => e?.choose);
-    return choice?.choose?.from?.map((s: string) => cap(s)) ?? [];
-  }
-},
-    { callSign: "SAVING_THROWS",        jsonKey: ["save", "proficiency"], conv: unifiedSaves },
+  {
+    callSign: "TOOL_CHOICE_LIST",
+    jsonKey: ["toolProficiencies", "toolProfs", "startingProficiencies"],
+    conv: (raw: any) => {
+      const arr = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.toolProficiencies)
+        ? raw.toolProficiencies
+        : Array.isArray(raw?.tools)
+        ? raw.tools
+        : [];
+      const choice = arr.find((e: any) => e?.choose);
+      return choice?.choose?.from?.map((s: string) => cap(s)) ?? [];
+    }
+  },
+  { callSign: "SAVING_THROWS",        jsonKey: ["save", "proficiency"], conv: unifiedSaves },
   {
     callSign: "SKILLS",
     jsonKey: ["skill", "skillProf", "skillProficiencies", "startingProficiencies"],
     conv: unifiedSkills
   },
 
-{
-  callSign: "SKILL_CHOICE_LIST",
-  jsonKey: ["skill", "skillProf", "skillProficiencies", "startingProficiencies"],
-  conv: (raw: any) => {
-    // normalize into an array of entries
-    const arr: any[] = Array.isArray(raw)
-      ? raw
-      : Array.isArray(raw?.skillProficiencies)
-      ? raw.skillProficiencies
-      : Array.isArray(raw?.skills)
-      ? raw.skills
-      : Array.isArray(raw?.skillProf)
-      ? raw.skillProf
-      : [];
+  {
+    callSign: "SKILL_CHOICE_LIST",
+    jsonKey: ["skill", "skillProf", "skillProficiencies", "startingProficiencies"],
+    conv: (raw: any) => {
+      // normalize into an array of entries
+      const arr: any[] = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.skillProficiencies)
+        ? raw.skillProficiencies
+        : Array.isArray(raw?.skills)
+        ? raw.skills
+        : Array.isArray(raw?.skillProf)
+        ? raw.skillProf
+        : [];
 
-    // find the one entry that represents the “choose” bucket
-    const choiceObj = arr.find(e => e?.choose || typeof e.any === "number");
-    if (!choiceObj) return [];
+      // find the one entry that represents the “choose” bucket
+      const choiceObj = arr.find(e => e?.choose || typeof e.any === "number");
+      if (!choiceObj) return [];
 
-    // explicit “choose from [ ... ]”
-    if (choiceObj.choose && Array.isArray(choiceObj.choose.from)) {
-      return choiceObj.choose.from.map(cap);
+      // explicit “choose from [ ... ]”
+      if (choiceObj.choose && Array.isArray(choiceObj.choose.from)) {
+        return choiceObj.choose.from.map(cap);
+      }
+
+      // the “any: 3” shorthand → offer every skill
+      if (typeof choiceObj.any === "number") {
+        // SKILL_OPTIONS is your const ["Acrobatics", "Animal Handling", …]
+        return SKILL_OPTIONS;
+      }
+
+      return [];
     }
+  },
+  { callSign: "SPELL_CAST_MOD",jsonKey: "spellcastingAbility",  
+    conv: (raw) => {
+    // raw might be "cha" or "CHA"
+    const key = String(raw).toLowerCase();
+    return ABILITY_FULL[key] || key.toUpperCase();
+  }},
 
-    // the “any: 3” shorthand → offer every skill
-    if (typeof choiceObj.any === "number") {
-      // SKILL_OPTIONS is your const ["Acrobatics", "Animal Handling", …]
-      return SKILL_OPTIONS;
-    }
-
-    return [];
-  }
-},
 
   // ─── Spells ───
   { callSign: "LEVEL",         jsonKey: "level" },
@@ -837,7 +854,7 @@ export const BESTIARY_KEYS: FMKey[] = [
 
 export const CLASS_KEYS: FMKey[] = [
   "NAME",
-  "SOURCE",
+  "SPELL_CAST_MOD",
   "ARMOR_PROFICIENCIES",
   "WEAPON_PROFICIENCIES",
   "TOOL_PROFICIENCIES",
@@ -845,6 +862,8 @@ export const CLASS_KEYS: FMKey[] = [
   "SAVING_THROWS",
   "SKILLS",
   "SKILL_CHOICE_LIST",
+  "TRAITS",
+  "SOURCE"
 ];
 
 export const BACKGROUND_KEYS: FMKey[] = [
