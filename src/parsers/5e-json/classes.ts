@@ -6,7 +6,9 @@ import {
   unifiedToolProfs, 
   unifiedWeaponProfs, 
   SkillOption,
-  unifiedSkills 
+  unifiedSkills,
+  SKILL_OPTIONS, 
+  FM_FIELDS
 } from "./helpers/frontmatter";
 import { renderMarkdownTable } from "./helpers/markdownTable";
 import { replace5eTags } from "./helpers/tagReplacer";
@@ -119,14 +121,14 @@ export function parseClassFile(
   const hdMax   = hdNum * hdFaces;
   const hdAvg   = Math.ceil((hdFaces + 1) / 2);
 
-  // build & override frontmatter
-  const baseFM = buildFM(cls, CLASS_META_DEFS);
-  const fm     = { ...baseFM, hd: hdStr };
-  const yaml   = serializeFrontmatter(fm, CLASS_META_DEFS);
+const baseFM = buildFM(cls, CLASS_META_DEFS);
+const fm     = { ...baseFM, hd: hdStr };
+const yaml   = serializeFrontmatter(fm, CLASS_META_DEFS);
 
-  const lines: string[] = [];
+// 1) Declare your lines buffer immediately
+const lines: string[] = [];
 
-  // ─── Title & Source ───
+// 4) Now carry on with the rest of your body
 lines.push(`# ${className}`);
 if (cls.source) lines.push(`**Source:** ${cls.source}`);
 lines.push(``);
@@ -175,11 +177,45 @@ if (saves.length) {
   lines.push(`- **Saving Throws:** ${saves.join(", ")}`);
 }
 
-// Skills
-const skillList = unifiedSkills(sp);
-if (skillList.length) {
-  lines.push(`- **Skills:** ${skillList.join(", ")}`);
+
+// ─── Skills ───
+{
+  // 1) grab whatever array holds the raw objects/strings
+  const rawSkills: any[] =
+    Array.isArray(sp.skillProficiencies) ? sp.skillProficiencies
+    : Array.isArray(sp.skills)             ? sp.skills
+    : Array.isArray(sp.skillProf)          ? sp.skillProf
+    : [];
+
+  // 2) look for the “choose N from […]” entry
+  const choiceEntry = rawSkills.find(
+    e => e &&
+         (typeof e.choose === "object" || typeof e.any === "number")
+  );
+
+  if (choiceEntry) {
+    // how many to choose
+    const count = choiceEntry.choose?.count ?? choiceEntry.any ?? 1;
+
+    // pull the actual list of options, or fall back to the global SKILL_OPTIONS
+    const options: string[] = Array.isArray(choiceEntry.choose?.from)
+      ? choiceEntry.choose.from.map((s: string) =>
+          // title-case each word (or just use s)
+          s.split(" ").map(w => w[0].toUpperCase() + w.slice(1)).join(" ")
+        )
+      : SKILL_OPTIONS;
+
+    lines.push(`- **Skills (Choose ${count}):** ${options.join(", ")}`);
+
+  } else {
+    // no choose-from object → flat list from your unified helper
+    const flat = unifiedSkills(sp);
+    if (flat.length) {
+      lines.push(`- **Skills:** ${flat.join(", ")}`);
+    }
+  }
 }
+
 
 
   // ─── Equipment ───

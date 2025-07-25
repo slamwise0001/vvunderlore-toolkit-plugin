@@ -42,18 +42,24 @@ export const PROPERTY_MAP: Record<string,string> = {
 };
 
 export const ITEM_TYPE_MAP: Record<string,string> = {
+  $C:  "Currency",
   $G:  "Gem",
   A:   "Ammunition",
+  "AIR|DMG": "Vehicle (air)",
+  "AF|DMG": "Future Ammo",
   AT:  "Artisan Tools",
   EXP: "Explosive",
+  FD:  "Food and Drink",
   G:   "Gear",
   GS:  "Game",
   HA:  "Heavy Armor",
+  "IDG|TDCSR": "Illicit Drug",
   INS: "Instrument",
   LA:  "Light Armor",
   M:   "Weapon",
   MA:  "Medium Armor",
   MNT: "Mounts and Vehicles",
+  ODH: "Miscellaneous",
   P:   "Consumable",
   R:   "Ranged Weapon",
   RD:  "Rod",
@@ -71,6 +77,7 @@ export const ITEM_TYPE_MAP: Record<string,string> = {
 
 /** code → full folder path under Items/ */
 const codeFolderMap: Record<string,string> = {
+  // Weapons & Armor
   "A":   "Weapons and Armor/Ammunition",
   "M":   "Weapons and Armor/Weapons",
   "R":   "Weapons and Armor/Ranged Weapons",
@@ -79,27 +86,47 @@ const codeFolderMap: Record<string,string> = {
   "MA":  "Weapons and Armor/Armor/Medium Armor",
   "HA":  "Weapons and Armor/Armor/Heavy Armor",
   "EXP": "Weapons and Armor/Weapons/Explosives",
+  // Future Ammo (AF|DMG → rawCode "AF")
+  "AF":  "Weapons and Armor/Ammunition/Future Ammo",
 
+  // Magical Items
   "RD":  "Magical Items/Rods",
   "RG":  "Magical Items/Rings",
   "SC":  "Magical Items/Scrolls",
   "SCF": "Magical Items/Spell Casting Focus",
   "WD":  "Magical Items/Wands",
 
+  // Valuables
   "$G": "Valuables/Gems",
+  // Currency (rawCode becomes "C" after stripping $)
+  "C":  "Valuables/Currency",
   "TG": "Valuables/Trade Goods",
 
+  // Artisan Goods
   "AT":  "Artisan Goods/Tools",
   "T":   "Artisan Goods/Tools",
   "INS": "Artisan Goods/Instruments",
   "GS":  "Artisan Goods/Games",
 
+  // Gear & Mounts
   "G":   "Gear",
+  // Mounts & Vehicles
   "MNT": "Gear/Mounts and Vehicles",
   "TAH": "Gear/Mounts and Vehicles",
   "VEH": "Gear/Mounts and Vehicles",
+  // Air vehicles (AIR|DMG → rawCode "AIR")
+  "AIR": "Gear/Mounts and Vehicles/Air",
 
+  // Consumables
   "P":   "Consumables",
+  // Food & Drink
+  "FD":  "Consumables/Food and Drink",
+
+  // Illicit Drugs (IDG|TDCSR → rawCode "IDG")
+  "IDG": "Gear/Illicit Drugs",
+
+  // Miscellaneous (ODH)
+  "ODH": "Gear/Miscellaneous",
 };
 
 export function parseItemsFile(json: any, editionId: string): ParsedMarkdownFile[] {

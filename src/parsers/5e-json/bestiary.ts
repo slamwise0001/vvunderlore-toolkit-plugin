@@ -4,7 +4,7 @@ import type { ParsedMarkdownFile } from "src/types";
 import { getFullSourceName } from "./helpers/sourceMap";
 import { replace5eTags } from "./helpers/tagReplacer";
 import { renderMarkdownTable } from "./helpers/markdownTable";
-import { buildFM, serializeFrontmatter, BESTIARY_META_DEFS } from "./helpers/frontmatter";
+import { buildFM, serializeFrontmatter, BESTIARY_META_DEFS, unifiedSkills, FM_FIELDS } from "./helpers/frontmatter";
 
 const skippedMonsters: string[] = [];
 
@@ -182,32 +182,6 @@ const missing = [...allNames].filter(name => !validNames.has(name));
       }
       const speed = speedList.join(", ");
   
-      // — Senses, Saves, Skills, Languages (your existing logic) —
-      const senses: string[] = [];
-      if (monster.senses) {
-        if (Array.isArray(monster.senses)) {
-          monster.senses.forEach((s: string) => {
-            const clean = s.replace(/^\d+\s*/, "");
-            senses.push(capitalizeFirst(clean));
-          });
-        } else {
-          Object.entries(monster.senses).forEach(([sense, val]) => {
-            senses.push(`${capitalizeFirst(sense)} ${val}`);
-          });
-        }
-      }
-      const savingThrows = monster.save
-        ? Object.keys(monster.save).map(k => k.toUpperCase())
-        : [];
-      const skills = monster.skill
-        ? Object.keys(monster.skill).map(s => capitalizeFirst(s))
-        : [];
-      const languages = Array.isArray(monster.languages)
-        ? monster.languages
-        : monster.languages
-          ? [monster.languages]
-          : [];
-  
       // — Source sanitization —
       let source = getFullSourceName(monster.source, editionId);
       source     = source.replace(/:/g, " -");
@@ -217,18 +191,35 @@ const missing = [...allNames].filter(name => !validNames.has(name));
   
       const fm   = buildFM(monster, BESTIARY_META_DEFS);
       const yaml = serializeFrontmatter(fm, BESTIARY_META_DEFS);
-  
+      
+      const savingThrows = (fm[FM_FIELDS.SAVING_THROWS] as string[]) || [];
+      const skills       = (fm[FM_FIELDS.SKILLS]        as string[]) || [];
+      const senses       = (fm[FM_FIELDS.SENSES]        as string[]) || [];
+      const languages    = (fm[FM_FIELDS.LANGUAGES]     as string[]) || [];
+
+
       // — Body —
-      let body = `# ${name}\n\n${formatSizeAbbrev(rawSize)} ${rawType}, ${formatAlignmentAbbrev(rawAlignment)}\n\n` +
-                 `**Armor Class**: ${ac}\n` +
-                 `**Hit Points**: ${hp}\n` +
-                 `**Speed**: ${speed}\n` +
-                 (savingThrows.length ? `**Saving Throws**: ${savingThrows.join(", ")}\n` : "") +
-                 (skills.length       ? `**Skills**: ${skills.join(", ")}\n`       : "") +
-                 (senses.length       ? `**Senses**: ${senses.join(", ")}\n`       : "") +
-                 (languages.length    ? `**Languages**: ${languages.join(", ")}\n`   : "") +
-                 `**Challenge**: ${cr}\n\n` +
-                 renderAbilitiesTable(str, dex, con, int, wis, cha);
+      let body =
+      `# ${name}\n\n` +
+      `${formatSizeAbbrev(rawSize)} ${rawType}, ${formatAlignmentAbbrev(rawAlignment)}\n\n` +
+      `**Armor Class**: ${ac}\n` +
+      `**Hit Points**: ${hp}\n` +
+      `**Speed**: ${speed}\n` +
+      (savingThrows.length
+        ? `**Saving Throws**: ${savingThrows.join(", ")}\n`
+        : "") +
+      (skills.length
+        ? `**Skills**: ${skills.join(", ")}\n`
+        : "") +
+      (senses.length
+        ? `**Senses**: ${senses.join(", ")}\n`
+        : "") +
+      (languages.length
+        ? `**Languages**: ${languages.join(", ")}\n`
+        : "") +
+      `**Challenge**: ${cr}\n\n` +
+      renderAbilitiesTable(str, dex, con, int, wis, cha);
+
   
       if (monster.trait)     body += `\n\n### Traits\n${monster.trait.map(renderEntry).join("\n\n")}`;
       if (monster.action)    body += `\n\n### Actions\n${monster.action.map(renderEntry).join("\n\n")}`;

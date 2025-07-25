@@ -57,17 +57,48 @@ export function formatDuration(duration: any[]): string {
     return "Special";
   }).join(", ");
 }
+// in parsers/5e-json/parseSpellsFile.ts (or wherever formatComponents lives)
 
 function formatComponents(components: any): string {
   if (!components) return "";
 
-  const out = [];
-  if (components.v) out.push("V");
-  if (components.s) out.push("S");
-  if (components.m) out.push("M");
+  const parts: string[] = [];
 
-  return out.join(", ");
+  if (components.v) parts.push("V");
+  if (components.s) parts.push("S");
+
+  if (components.m) {
+    // pull out the actual material text(s)
+    let matDetails: string[] = [];
+
+    if (Array.isArray(components.m)) {
+      matDetails = components.m
+        .map((item:any) =>
+          typeof item === "string"
+            ? item
+            : item && typeof item.text === "string"
+            ? item.text
+            : null
+        )
+        .filter((t:any): t is string => !!t);
+    } else if (typeof components.m === "string") {
+      matDetails = [components.m];
+    } else if (components.m.text) {
+      matDetails = [components.m.text];
+    }
+
+    // build the “M” entry, appending details if any
+    const matPart =
+      matDetails.length > 0
+        ? `M (${matDetails.join(", ")})`
+        : "M";
+
+    parts.push(matPart);
+  }
+
+  return parts.join(", ");
 }
+
 
 export function parseSpellsFile(json: any, editionId: string): ParsedMarkdownFile[] {
   if (!json.spell) return [];

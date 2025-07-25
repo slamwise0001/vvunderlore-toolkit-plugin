@@ -429,6 +429,19 @@ export default class VVunderloreToolkitPlugin extends Plugin {
       async () => await this.saveSettings()
     );
 
+
+      const origError = console.error.bind(console);
+  console.error = (msg?: any, ...rest: any[]) => {
+    if (
+      typeof msg === "string" &&
+      msg.includes("Cannot index file") &&
+      msg.includes("Dataview")
+    ) {
+      return;
+    }
+    origError(msg, ...rest);
+  };
+  
     this.settingsTab = new ToolkitSettingsTab(this.app, this);
     this.addSettingTab(this.settingsTab);
 
@@ -440,7 +453,7 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     } catch (err) {
       console.warn('Manifest not found in vault; will fetch from GitHub shortly.');
     }
-
+    
     // If highlighting was ON before, restore it now:
 	if (this.settings.highlightEnabled && !this.settings.needsInstall) {
 		this.enableHighlight();
@@ -464,6 +477,16 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     }, 250);
 
     this.scheduleAutoUpdateCheck();
+
+  this.registerEvent(
+    this.app.vault.on("delete", () =>
+    (this.app as any).commands.executeCommandById("dataview:clear-cache")    )
+  );
+  this.registerEvent(
+    this.app.vault.on("rename", () =>
+      (this.app as any).commands.executeCommandById("dataview:clear-cache")
+    )
+  );
 
     // Defensive: ensure settings.customPaths exists
     if (!this.settings.customPaths) {

@@ -1,7 +1,7 @@
 import { getFullSourceName } from "./sourceMap";
 import { formatSizeAbbrev, formatAlignmentAbbrev } from "../bestiary";
 import { formatRange, formatTime, formatDuration, SCHOOL_MAP } from "../spells";
-import { PROPERTY_MAP, DAMAGE_TYPE_MAP } from "../items";
+import { PROPERTY_MAP, DAMAGE_TYPE_MAP, ITEM_TYPE_MAP } from "../items";
 import { replace5eTags } from "./tagReplacer";
 
 function blankUndefined(val: any): any {
@@ -443,26 +443,66 @@ export const ALL_FIELD_DEFS: FieldDef[] = [
   }}, 
 {
   callSign: "TRAITS",
-  jsonKey: "entries",
-  conv: (ents: any): string[] => {
-    if (!Array.isArray(ents)) return [];
-    const arr = ents as any[];
+  jsonKey: ["classFeatures", "entries"],
+  conv: (raw: any, allJson: any): string[] => {
+    // pull the class record so we know its display name
+    const clsRec = Array.isArray(allJson.class) ? allJson.class[0] : allJson;
+    const className = typeof clsRec.name === "string" ? clsRec.name : "";
 
-    // collect only those marked as features
-    const featureNames = arr
-      .filter(e => e?.data?.isFeature && typeof e.name === "string")
-      .map(e => e.name.replace(/^Feature:\s*/, "").trim());
+    // names we never want to emit
+    const omit = new Set([
+      "Ability Score Improvement",
+      "Archetype Feature",
+      "Subclass Feature",
+      // add more if you like…
+    ]);
+    const seen = new Set<string>();
 
-    if (featureNames.length > 0) {
-      return featureNames;
+    // 1) if there's a classFeatures array, use it
+    if (Array.isArray(allJson.classFeatures)) {
+      return allJson.classFeatures.flatMap((feat: any) => {
+        // skip subclass‐injected features entirely
+        if (feat && typeof feat === "object" && feat.gainSubclassFeature) return [];
+
+        // normalize to a string
+        const rawName =
+          typeof feat === "string"
+            ? feat
+            : typeof feat.classFeature === "string"
+            ? feat.classFeature
+            : "";
+
+        // drop everything after the first “|”
+        const name = rawName.split("|")[0].trim();
+        if (!name || omit.has(name) || seen.has(name)) return [];
+        seen.add(name);
+
+        // build a nice anchor (must match your headers)
+        const anchor = name
+          .replace(/[^\w\s]/g, "")    // strip punctuation
+          .replace(/\s+/g, " ")       // collapse spaces
+          .trim()
+          .replace(/\b\w/g, (c: any) => c.toUpperCase()); // Title Case
+
+        // produce a file-anchor link
+        return `[[${className}#${anchor}|${name}]]`;
+      });
     }
 
-    // fallback: any named entry (for creatures/species)
-    return arr
-      .filter(e => e && typeof e.name === "string")
-      .map(e => e.name.replace(/^Feature:\s*/, "").trim());
-  }
+    // 2) otherwise fall back to your old entries-based logic
+    const ents = Array.isArray(raw) ? raw : [];
+    const featureNames = ents
+      .filter((e: any) => e?.data?.isFeature && typeof e.name === "string")
+      .map((e: any) => e.name.replace(/^Feature:\s*/, "").trim());
+    if (featureNames.length) return featureNames;
+
+    return ents
+      .filter((e: any) => e && typeof e.name === "string")
+      .map((e: any) => e.name.replace(/^Feature:\s*/, "").trim());
+  },
 },
+
+
   { callSign: "AC", jsonKey: "ac", conv: a => Array.isArray(a)?a[0].ac:a },
   { callSign: "HP", jsonKey: "hp", conv: hp => hp?.average ?? hp },
   { callSign: "CHALLENGE_RATING", jsonKey: "cr" },
@@ -490,23 +530,31 @@ export const ALL_FIELD_DEFS: FieldDef[] = [
     }
   },
     {
-    callSign: "TYPE",
-    jsonKey: "type",
-    conv: (t: any) => {
-      if (!t) return undefined;
+      callSign: "TYPE",
+      jsonKey: "type",
+      conv: (t: any): string | undefined => {
+        // 1) If it’s a simple string code, map it
+        if (typeof t === "string") {
+          // direct lookup—if no mapping, just title‐case the code
+          return ITEM_TYPE_MAP[t] ?? cap(t);
+        }
 
-      if (typeof t === "string") return cap(t);
+        // 2) If it’s an object with a .type tag
+        if (t && typeof t === "object") {
+          const code = String(t.type || "").toUpperCase();
+          // try the map first
+          if (ITEM_TYPE_MAP[code]) {
+            return ITEM_TYPE_MAP[code];
+          }
+          // otherwise fall back to “Base (tags…)” style
+          const base = t.type ? cap(t.type) : "Unknown";
+          const tags = Array.isArray(t.tags) ? t.tags.map(cap) : [];
+          return tags.length ? `${base} (${tags.join(", ")})` : base;
+        }
 
-      if (typeof t === "object") {
-        const base = t.type ? cap(t.type) : "Unknown";
-        const tags = Array.isArray(t.tags) ? t.tags.map(cap) : [];
-
-        return tags.length ? `${base} (${tags.join(", ")})` : base;
+        return undefined;
       }
-
-      return undefined;
-    }
-  },
+    },
 
 
   // ─── Items ───

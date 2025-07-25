@@ -37,6 +37,7 @@ export function replace5eTags(input: unknown): string {
         ? `[[Rules#${capitalizeEach(term)}]]`
         : term;
     })
+    .replace(/\{\@5etools\s+([^|}]+)\|[^}]+\}/g, '$1')
     .replace(/\{@recharge\s*([^}]+)\}/g, (_, num) => `(recharge: ${num.trim()})`)
     .replace(/\{@(scaledice|scaledamage)[^}]*\|([^|}]+)\}/g, (_, __, value) => value)
     .replace(/\{@d20[^}]*\}/g, "")
