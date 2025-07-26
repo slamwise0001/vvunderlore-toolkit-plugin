@@ -17,6 +17,11 @@ import { showCustomInstallModal } from './customInstallModal';
 import { AVAILABLE_EDITIONS } from './editions';
 import { importRulesetData } from './rulesetInstaller';
 
+function getRulesetDisplayName(key: string): string {
+ const ed = AVAILABLE_EDITIONS.find(e => e.id === key);
+ return ed?.label ?? key;
+}
+
 const loadingIcon = 
 'data:image/png;base64,' +
 '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'
@@ -99,6 +104,7 @@ interface ToolkitSettings {
   highlightColorDark: string;
   rulesetCompendium: string;
   rulesetReference: string[];
+  reparseGamesets: boolean;
 }
 
 const DEFAULT_SETTINGS: ToolkitSettings = {
@@ -129,6 +135,7 @@ const DEFAULT_SETTINGS: ToolkitSettings = {
   highlightColorDark: 'rgb( 50,  70,  50)',
   rulesetCompendium: "",
   rulesetReference: [],
+  reparseGamesets: true,
 };
 
 interface CustomPathEntry {
@@ -176,6 +183,9 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     'plugins',
     'Compendium'
   ];
+
+  public pendingRulesetKey: string = '';
+  public pendingReferenceKeys: string[] = [];
   
   // ─── HELPERS ────────────────────────────────────────────────────────
 
@@ -441,7 +451,7 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     }
     origError(msg, ...rest);
   };
-  
+
     this.settingsTab = new ToolkitSettingsTab(this.app, this);
     this.addSettingTab(this.settingsTab);
 
@@ -566,45 +576,45 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     }
   }
 
-// ─── FORCE-UPDATE PREVIEW ──────────────────────────────────────────────
+  // ─── FORCE-UPDATE PREVIEW ──────────────────────────────────────────────
 
-async buildForceUpdatePreview(): Promise<PreviewItem[]> {
-	const previewList: PreviewItem[] = [];
+  async buildForceUpdatePreview(): Promise<PreviewItem[]> {
+    const previewList: PreviewItem[] = [];
 
-	// 0) Collect all blacklisted folders (manifestKey values where doUpdate === false)
-	const denyListedFolders = this.settings.customPaths
-	  .filter((c) => c.doUpdate === false)
-	  .map((c) => c.manifestKey);
+    // 0) Collect all blacklisted folders (manifestKey values where doUpdate === false)
+    const denyListedFolders = this.settings.customPaths
+      .filter((c) => c.doUpdate === false)
+      .map((c) => c.manifestKey);
 
-	// 1) Deny-listed files first—but only if they would actually be "new" or "out of date"
-	for (const entry of this.manifestCache.files) {
-	  // ── SKIP any optional:true file
-	  if (entry.optional) {
-		continue;
-	  }
+    // 1) Deny-listed files first—but only if they would actually be "new" or "out of date"
+    for (const entry of this.manifestCache.files) {
+      // ── SKIP any optional:true file
+      if (entry.optional) {
+      continue;
+      }
 
-	  const custom = this.settings.customPaths.find((c) => c.manifestKey === entry.key);
-	  const isInDenyFolder = denyListedFolders.some((folder) =>
-		entry.path.startsWith(folder + '/')
-	  );
-	  if (custom?.doUpdate === false || isInDenyFolder) {
-		// Resolve vault path (accounting for any remapping)
-		const vp = custom?.vaultPath ?? this.resolveVaultPath(entry.path);
+      const custom = this.settings.customPaths.find((c) => c.manifestKey === entry.key);
+      const isInDenyFolder = denyListedFolders.some((folder) =>
+      entry.path.startsWith(folder + '/')
+      );
+      if (custom?.doUpdate === false || isInDenyFolder) {
+      // Resolve vault path (accounting for any remapping)
+      const vp = custom?.vaultPath ?? this.resolveVaultPath(entry.path);
 
-		// Check: does the file exist locally? And is it up-to-date?
-		const exists = await this.app.vault.adapter.exists(vp);
-		const upToDate = exists && (await this.fileCacheManager.isUpToDate(vp));
+      // Check: does the file exist locally? And is it up-to-date?
+      const exists = await this.app.vault.adapter.exists(vp);
+      const upToDate = exists && (await this.fileCacheManager.isUpToDate(vp));
 
-		// Only show as deny-listed if it would have been “new” (missing) or “out-of-date”
-		if (!exists || !upToDate) {
-		  previewList.push({
-			filePath: vp,
-			action: 'deny-listed – will not update',
-			selected: false,
-		  });
-		}
-	  }
-	}
+      // Only show as deny-listed if it would have been “new” (missing) or “out-of-date”
+      if (!exists || !upToDate) {
+        previewList.push({
+        filePath: vp,
+        action: 'deny-listed – will not update',
+        selected: false,
+        });
+      }
+      }
+    }
 
 	// 2) FULL-SYNC mode (skip any file/folder that is blacklisted)
 	if (!this.settings.customizeUpdates) {
@@ -909,7 +919,13 @@ async buildForceUpdatePreview(): Promise<PreviewItem[]> {
 			checkbox.title = 'This item is deny-listed';
 		  });
 		}
-  
+
+    if (this.plugin.settings.reparseGamesets) {
+        this.contentEl
+          .createDiv({ cls: 'mod-aux-text' })
+          .setText('🔄 Refreshing Gameset Data');
+      }
+
 		// 6) Buttons at the bottom
 		const buttonRow = this.contentEl.createEl('div');
 		Object.assign(buttonRow.style, {
@@ -1014,6 +1030,11 @@ async buildForceUpdatePreview(): Promise<PreviewItem[]> {
       await this.saveSettings();
 
       new Notice('✅ Toolkit force‐updated with your selections.');
+
+          if (this.settings.reparseGamesets) {
+      new Notice('🔄 Refreshing Game Set Data…');
+      await this.refreshGameSetData();
+    }
 
       if (this.settingsTab) {
         await this.settingsTab.updateVersionDisplay();
@@ -1820,18 +1841,18 @@ async buildForceUpdatePreview(): Promise<PreviewItem[]> {
     }
   }
 
-  /** main.ts **/
+    /** main.ts **/
 
-/** 
- * Install the selected compendium and zero or more reference editions.
- */
-public async installFullToolkit(
-  opts: { compendium: string; references: string[] } = { compendium: "", references: [] }
-): Promise<void> {
-  const { compendium, references } = opts;
-  if (!compendium) {
-    throw new Error("No compendium edition selected");
-  }
+  /** 
+   * Install the selected compendium and zero or more reference editions.
+   */
+  public async installFullToolkit(
+    opts: { compendium: string; references: string[] } = { compendium: "", references: [] }
+  ): Promise<void> {
+    const { compendium, references } = opts;
+    if (!compendium) {
+      throw new Error("No compendium edition selected");
+    }
 
   // 1) Show the “Installing…” spinner
   const placeholder = new InstallingModal(this.app);
@@ -1880,6 +1901,27 @@ public async installFullToolkit(
       }
     }
 
+      this.settings.rulesetCompendium = compendium;
+      const pickedRefs = references.length > 0
+          ? references
+          : this.settings.rulesetReference;
+        this.settings.rulesetReference = pickedRefs;
+
+        await this.saveSettings();
+
+        // now run the import jobs against the compendium + the actual refs
+        const jobs = [
+          importRulesetData({ app: this.app, editionKey: compendium, targetPath: "Compendium" }),
+           ...pickedRefs.map(refKey => {
+    const displayName = getRulesetDisplayName(refKey);
+    return importRulesetData({
+      app:        this.app,
+      editionKey: refKey,
+      targetPath: `Resources/Rulesets/${displayName}`,})
+        })
+        ];
+        await Promise.all(jobs);
+
     // 3) Kick off your JSON→MD parsers in parallel
     const parseJobs = [
       importRulesetData({
@@ -1887,13 +1929,14 @@ public async installFullToolkit(
         editionKey: compendium,
         targetPath: `Compendium`,
       }),
-      ...references.map(refKey =>
-        importRulesetData({
-          app: this.app,
-          editionKey: refKey,
-          targetPath: `${refKey}`,
+  ...references.map(refKey => {
+    const displayName = getRulesetDisplayName(refKey);
+    return importRulesetData({
+      app:        this.app,
+      editionKey: refKey,
+      targetPath: `Resources/Rulesets/${displayName}`,
         })
-      ),
+      }),
     ];
     // this won’t resolve until _all_ parsers have finished writing their MD files
     await Promise.all(parseJobs);
@@ -1921,6 +1964,36 @@ public async installFullToolkit(
         : "❌ Failed to install toolkit. See console for details."
     );
   }
+}
+
+// * Re-parse all gameset data (ruleset compendium + reference sets)
+async refreshGameSetData(): Promise<void> {
+  const { rulesetCompendium, rulesetReference } = this.settings;
+
+  if (!rulesetCompendium && rulesetReference.length === 0) {
+    new Notice("⚠️ No gameset keys set; nothing to refresh.");
+    return;
+  }
+
+  const jobs: Promise<unknown>[] = [];
+  if (rulesetCompendium) {
+    jobs.push(importRulesetData({
+      app: this.app,
+      editionKey: rulesetCompendium,
+      targetPath: "Compendium",
+    }));
+  }
+for (const ref of rulesetReference) {
+  const displayName = getRulesetDisplayName(ref);
+  jobs.push(importRulesetData({
+    app:        this.app,
+    editionKey: ref,
+    targetPath: `Resources/Rulesets/${displayName}`,
+  }));
+}
+
+  await Promise.all(jobs);
+  new Notice("✅ Game Set Data refreshed.");
 }
 
 

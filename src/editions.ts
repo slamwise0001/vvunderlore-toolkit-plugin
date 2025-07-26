@@ -25,27 +25,20 @@ export interface Edition {
   export const AVAILABLE_EDITIONS: Edition[] = [
     {
       id: '5e-2014',
-      label: 'D&D 5E (2014)',
+      label: 'D&D 5e (2014)',
       repo: '5etools-mirror-3/5etools-2014-src',
-      parser: '5e-json',
+      parser: '5e-2014',
       sourceUrl: 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-2014-src/main/data',
       categories: [''],
     },
     {
       id: '5e-2025',
-      label: 'D&D 5E (2025)',
-      repo: 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/main/data',
-      parser: '5e-json',
-      sourceUrl: '5etools-mirror-3/5etools-src'
+      label: 'D&D 5e (2025)',
+      repo: '5etools-mirror-3/5etools-src',
+      parser: '5e-2025',
+      sourceUrl: 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/main/data',
     },
-    {
-      id: 'test',
-      label: 'Test Ruleset',
-      repo: '5etools-mirror-3/5etools-2014-src',
-      parser: '5e-json',
-      sourceUrl: 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-2014-src/main/data',
-      categories: ['spells', 'bestiary'],
-    }, 
+ 
     
 
   ];

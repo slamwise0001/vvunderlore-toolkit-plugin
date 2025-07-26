@@ -166,18 +166,12 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 			}
 			// 1) Outer wrapper
 			const card = root.createEl('div', { cls: 'vvunderlore-first-run' });
-			// Make the card a flex‐column and center everything:
 			Object.assign(card.style, {
 			display: 'flex',
 			flexDirection: 'column',
 			alignItems: 'center',
 			textAlign: 'center',
-			/* 
-				Push the card a bit down from the top of the settings pane.
-				You can adjust "2em" to move it higher or lower.
-			*/
 			marginTop: '2em',
-			/* Optional: add some padding so it doesn't hug the edges */
 			padding: '1em',
 			border: '2px solid var(--divider-color)',
 			borderRadius: '18px',        /* (optional) round the corners slightly */
@@ -602,18 +596,24 @@ rsDropdown
 		buttonGroup.style.display = 'flex';
 		buttonGroup.style.gap = '0.5em';
 
-		buttonGroup.createEl('button', {
-		text: 'Force Update Vault',
-		cls: 'mod-cta'
-		}).onclick = async () => {
-		await this.plugin.forceUpdatePreviewAndConfirm();
+		buttonGroup
+		.createEl("button", { text: "Force Update Vault", cls: "mod-cta" })
+		.onclick = async () => {
+			// first do your normal “force update” flow:
+			await this.plugin.forceUpdatePreviewAndConfirm();
+			// then, if the user asked for a re-parse, do that:
+			if (this.plugin.settings.reparseGamesets) {
+			await this.plugin.refreshGameSetData();
+			}
 		};
+
 
 		buttonGroup.createEl('button', {
 		text: 'Undo Update'
 		}).onclick = async () => {
 		await this.plugin.undoForceUpdate();
 		};
+
 
 		// ── Timestamp row ──────────────────────────────────────────────────────────
 		const fixTimestampRow = fixBody.createDiv();
@@ -629,7 +629,30 @@ rsDropdown
 			: 'Not forced yet'
 		}`;
 
+		// ──────────────── divider ────────────────
+fixBody.createEl('div', {
+  attr: {
+    style: 'border-top: 1px solid var(--divider-color); margin: 0.75em 0;'
+  }
+});
 
+		// ─── New “re-parse gamesets” toggle ─────────────────────────────────────
+		const reparseRow = fixBody.createDiv();
+		reparseRow.style.marginTop = "0.5em";
+		new Setting(reparseRow)
+		.setName("Re-parse Game Sets On Force Update")
+		.setDesc(
+			"Also re-parse your ruleset compendium and reference sets. This won't delete any files in the Compendium or Reference folders."
+		)
+
+				.addToggle((tog) =>
+			tog
+			.setValue(this.plugin.settings.reparseGamesets)
+			.onChange(async (value) => {
+				this.plugin.settings.reparseGamesets = value;
+				await this.plugin.saveSettings();
+			})
+		);
 
 		// ─── BACKUP SECTION ────────────────────────────────────
 		const backupDetails = containerEl.createEl('details', { cls: 'vk-section' });

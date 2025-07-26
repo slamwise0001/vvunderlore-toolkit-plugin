@@ -1,3 +1,5 @@
+// frontmatter 5e 2025
+
 import { getFullSourceName } from "./sourceMap";
 import { formatSizeAbbrev, formatAlignmentAbbrev } from "../bestiary";
 import { formatRange, formatTime, formatDuration, SCHOOL_MAP } from "../spells";
@@ -278,17 +280,40 @@ export const unifiedToolProfs = (val: any): string[] => {
 export const ALL_FIELD_DEFS: FieldDef[] = [
   // ─── Core ───
   { callSign: "NAME",  jsonKey: "name" },
-  { callSign: "SOURCE", jsonKey: ["source"], conv: (raw, all) => {
-      const out = new Set<string>();
-      const arr = Array.isArray(raw) ? raw : [raw];
-      arr.forEach(src => out.add(getFullSourceName(src, (all as any)._editionId)));
-      for (const os of all.otherSources ?? []) out.add(getFullSourceName(os.source, (all as any)._editionId));
-      for (const rep of all.reprintedAs ?? []) {
-        const [, src] = (rep as string).split("|");
-        out.add(getFullSourceName(src, (all as any)._editionId));
+{
+  callSign: "SOURCE",
+  jsonKey: ["source"],
+  conv: (raw: any, allJson: any): string[] => {
+    const out = new Set<string>();
+    const editionId = (allJson as any)._editionId;
+
+    // 1) primary source(s)
+    const arr = Array.isArray(raw) ? raw : [raw];
+    arr.forEach(src => {
+      out.add(getFullSourceName(src, editionId));
+    });
+
+    // 2) any otherSources entries
+    for (const os of allJson.otherSources ?? []) {
+      if (os && typeof os.source === "string") {
+        out.add(getFullSourceName(os.source, editionId));
       }
-      return [...out];
-  }},
+    }
+
+    // 3) reprintedAs entries (guard before splitting)
+    for (const rep of allJson.reprintedAs ?? []) {
+      // ensure we have a string to split
+      const repStr = typeof rep === "string" ? rep : String(rep);
+      const parts = repStr.split("|");
+      // if there's no pipe, parts[1] will be undefined, so fallback to parts[0]
+      const src = parts[1] ?? parts[0];
+      out.add(getFullSourceName(src, editionId));
+    }
+
+    return [...out];
+  }
+},
+
 
   // ─── Proficiencies ───
   { callSign: "ARMOR_PROFICIENCIES",  jsonKey: ["armorProficiencies", "armorProfs", "startingProficiencies"], conv: unifiedArmorProfs },
@@ -656,8 +681,12 @@ export const ALL_FIELD_DEFS: FieldDef[] = [
 },
   // ─── Other ───
   { callSign: "DAMAGE_RES", jsonKey: "resist", conv: v => Array.isArray(v) ? v.map(cap) : [] },
-  { callSign: "RULESET", jsonKey: "_editionId" },
-  
+{
+  callSign: "RULESET",
+  jsonKey: "name",
+  // ignore the raw value, always print HELLO
+  conv: (_raw, _all) => "D&D 5e (2025)",
+}, 
     // ─── Ability‐score modifiers (only emit when nonzero) ───
   {
     callSign: "STR_MOD",
@@ -834,6 +863,7 @@ export const SPELL_KEYS: FMKey[] = [
   "COMPONENTS",
   "CONCENTRATION",
   "SOURCE",
+  "RULESET"
 ];
 
 export const SPECIES_KEYS: FMKey[] = [
@@ -856,6 +886,7 @@ export const SPECIES_KEYS: FMKey[] = [
   "SENSES",
   "DAMAGE_RES",
   "SOURCE",
+  "RULESET"
 ];
 
 export const ITEM_KEYS: FMKey[] = [
@@ -864,7 +895,6 @@ export const ITEM_KEYS: FMKey[] = [
   "RARITY",
   "COST",
   "WEIGHT",
-  "SOURCE",
   "PROPERTIES",
   "DAMAGE",
   "DAMAGE_TYPES",
@@ -876,6 +906,8 @@ export const ITEM_KEYS: FMKey[] = [
   "MAGICAL",
   "ATTUNEMENT",
   "ATTUNE_REQ",
+  "SOURCE",
+  "RULESET"
 ];
 
 export const BESTIARY_KEYS: FMKey[] = [
@@ -898,6 +930,7 @@ export const BESTIARY_KEYS: FMKey[] = [
   "LANGUAGES",
   "CHALLENGE_RATING",
   "SOURCE",
+  "RULESET"
 ];
 
 export const CLASS_KEYS: FMKey[] = [
@@ -911,7 +944,8 @@ export const CLASS_KEYS: FMKey[] = [
   "SKILLS",
   "SKILL_CHOICE_LIST",
   "TRAITS",
-  "SOURCE"
+  "SOURCE",
+  "RULESET"
 ];
 
 export const BACKGROUND_KEYS: FMKey[] = [
@@ -922,10 +956,12 @@ export const BACKGROUND_KEYS: FMKey[] = [
   "TOOL_CHOICE_LIST",
   "TRAITS",
   "SOURCE",
+  "RULESET"
 ];
 
 export const FEATS_KEYS: FMKey[] = [
-  "SOURCE"
+  "SOURCE",
+  "RULESET"
 ];
 
 // ─── Field subsets for each parser ───
