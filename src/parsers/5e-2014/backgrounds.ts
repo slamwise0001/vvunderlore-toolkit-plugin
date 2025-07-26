@@ -119,7 +119,7 @@ lines.push("---", yaml, "---", "");
         }
         ["a", "b"].forEach(key => {
           if (Array.isArray(grp[key])) {
-            grp[key].forEach(it => lines.push(`- ${fmtItem(it)}`));
+            grp[key].forEach((it: any) => lines.push(`- ${fmtItem(it)}`));
           }
         });
       });
