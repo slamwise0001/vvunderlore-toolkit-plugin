@@ -1,8 +1,33 @@
 // src/firstinstallconfirm.ts
-import { App, Modal, ButtonComponent, Notice } from 'obsidian';
+import { App, Modal, ButtonComponent, Notice, normalizePath } from 'obsidian';
 import type VVunderloreToolkitPlugin from './main';
 import { InstallOptions } from './main';
 import { importRulesetData } from "./rulesetInstaller";
+
+async function activateCopiedPlugins(app: App) {
+  const filePath = normalizePath(".obsidian/community-plugins.json");
+
+  try {
+    const raw = await app.vault.adapter.read(filePath);
+    const pluginsToEnable: string[] = JSON.parse(raw);
+
+    if (!Array.isArray(pluginsToEnable)) return;
+
+    const loaded = (app as any).plugins;
+
+    for (const pluginId of pluginsToEnable) {
+      if (!loaded.enabledPlugins.has(pluginId)) {
+        await loaded.enablePluginAndSave(pluginId);
+        console.log(`Activated plugin: ${pluginId}`);
+      }
+    }
+
+    new Notice("Toolkit plugins enabled. Some may need a reload.");
+  } catch (e) {
+    console.warn("Failed to enable toolkit plugins:", e);
+  }
+}
+
 
 export class ConfirmFreshInstallModal extends Modal {
   private plugin: VVunderloreToolkitPlugin;
@@ -11,6 +36,7 @@ export class ConfirmFreshInstallModal extends Modal {
     super(app);
     this.plugin = plugin;
   }
+  
 
   onOpen() {
     this.contentEl.empty();
@@ -53,8 +79,6 @@ export class ConfirmFreshInstallModal extends Modal {
       .setButtonText("Install!!")
       .setCta() // makes it look like a primary action
       .onClick(async () => {
-        // close this modal immediately
-        this.close();
   
         const opts: InstallOptions = {
           compendium: this.plugin.settings.rulesetCompendium,
@@ -84,15 +108,29 @@ export class ConfirmFreshInstallModal extends Modal {
           console.error("❌ installToolkit() failed:", err);
           new Notice("❌ Toolkit installation failed. See console.");
         }
-  
-        // mark first‐run complete so the card never shows again
-        this.plugin.settings.needsInstall = false;
+        // 2. Save settings to disk
         await this.plugin.saveSettings();
-  
-        // re‐draw the settings UI now that we're past first‐run
+
+        // 3. Redraw settings panel
         this.plugin.settingsTab.display();
-      })
-  }
+
+        // 4. Show success screen inside modal
+        this.contentEl.empty();
+        this.titleEl.setText("✅ Toolkit Installed");
+
+        this.contentEl.createEl("div", {
+          text: "Reloading vault to finish setup. Don’t touch anything.",
+        }).style.cssText = `
+          font-size: 1em;
+          margin-top: 1em;
+          text-align: center;
+        `;
+
+        // 5. Delay, then close & reload
+        setTimeout(() => {
+          location.reload();
+        }, 3000);
+      })}
 
   onClose() {
     this.contentEl.empty();

@@ -24,6 +24,13 @@ export interface Edition {
   
   export const AVAILABLE_EDITIONS: Edition[] = [
     {
+      id: 'none',
+      label: 'None',
+      repo: '',
+      parser: '',
+      sourceUrl: '',
+    },
+    {
       id: '5e-2014',
       label: 'D&D 5e (2014)',
       repo: '5etools-mirror-3/5etools-2014-src',

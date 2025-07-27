@@ -159,11 +159,7 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 	  }
 	  
 		private renderFirstRunCard(root: HTMLElement){
-			
-			if (this.plugin.settings.needsInstall) {
-				this.plugin.settings.rulesetCompendium  = '';
-				this.plugin.settings.rulesetReference    = [];
-			}
+
 			// 1) Outer wrapper
 			const card = root.createEl('div', { cls: 'vvunderlore-first-run' });
 			Object.assign(card.style, {
@@ -397,10 +393,7 @@ rsDropdown
 			} catch (e) {
 				console.error('❌ Failed to create marker file:', e);
 			}
-		
-			// 2) Flip needsInstall to false (so the first‐run card is gone)
-			this.plugin.settings.needsInstall = false;
-			await this.plugin.saveSettings();
+
 		
 			// 3) Re‐render the normal settings UI
 			this.display();
@@ -411,20 +404,23 @@ rsDropdown
 	private versionValueEl: HTMLElement | null = null;
 	private forceWarningEl: HTMLElement | null = null;
 
-	display(): void {
-		console.log("🔧 display() called, needsInstall =", this.plugin.settings.needsInstall);
+	async display(): Promise<void> {
+   		console.log("🔧 display() called");
 		const { containerEl } = this;
 		const savedScrollTop = containerEl.scrollTop;
 		containerEl.empty();
-	
-		this.renderHeader(containerEl); // 👈 Always render header first
-	
-		if (this.plugin.settings.needsInstall) {
-			console.log("🧪 Showing first-run card");
+
+		const markerPath = '.vvunderlore_installed';
+		const isInstalled = await this.app.vault.adapter.exists(markerPath);
+		if (!isInstalled) {
+			console.log("🧪 first-run: marker missing → show installer card");
 			this.renderFirstRunCard(containerEl);
-			containerEl.scrollTop = savedScrollTop;
+				containerEl.scrollTop = savedScrollTop;
 			return;
 		}
+
+		this.renderHeader(containerEl); // 👈 Always render header first
+
 	;(async () => {	
 		
 		/** ─── VERSION SECTION ─── */

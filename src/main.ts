@@ -8,7 +8,7 @@ import {
   TFile,
   Vault
 } from 'obsidian'; 
-
+ 
 import { ToolkitSettingsTab } from './settings';
 import { ToolkitFileCacheManager } from './fileCacheManager';
 import type { ToolkitFileCacheEntry } from './fileCacheManager';
@@ -16,6 +16,7 @@ import { BackupManager } from './backup/BackupManager';
 import { showCustomInstallModal } from './customInstallModal';
 import { AVAILABLE_EDITIONS } from './editions';
 import { importRulesetData } from './rulesetInstaller';
+import { ConfirmFreshInstallModal } from './firstinstallconfirm';
 
 function getRulesetDisplayName(key: string): string {
  const ed = AVAILABLE_EDITIONS.find(e => e.id === key);
@@ -98,7 +99,6 @@ interface ToolkitSettings {
   backupError?: string;
   customPaths: CustomPathEntry[];
   autoBackupBeforeUpdate: boolean;
-  needsInstall: boolean;
   highlightEnabled: boolean;
   highlightColorLight: string;
   highlightColorDark: string;
@@ -129,7 +129,6 @@ const DEFAULT_SETTINGS: ToolkitSettings = {
   backupError: '',
   customPaths: [],
   autoBackupBeforeUpdate: true,
-  needsInstall: true,
   highlightEnabled: false,
   highlightColorLight: 'rgb(107, 146, 120)',
   highlightColorDark: 'rgb( 50,  70,  50)',
@@ -173,16 +172,15 @@ export default class VVunderloreToolkitPlugin extends Plugin {
 
   backupManager: BackupManager;
   excludedPaths = [
-    '.obsidian',
     '.DS_Store',
     '.gitignore',
     '.gitattributes',
     '.github',
     'README.md',
-    '.version.json',
-    'plugins',
     'Compendium'
   ];
+
+  private isFirstRun: boolean = false;
 
   public pendingRulesetKey: string = '';
   public pendingReferenceKeys: string[] = [];
@@ -198,6 +196,8 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     );
     return custom?.vaultPath ?? githubPath;
   }
+
+  
 
   /** Convert “some/folder/file.md” → “some-folder-file” (lowercased, no extension). */
   keyFor(path: string): string {
@@ -259,7 +259,6 @@ export default class VVunderloreToolkitPlugin extends Plugin {
 		this.settings.installedVersion =
 		this.settings.latestToolkitVersion ?? this.settings.installedVersion;
 		this.settings.lastForceUpdate = new Date().toISOString();
-		this.settings.needsInstall = false;
 		await this.saveSettings();
 
 		// 4) Create the hidden marker file
@@ -269,11 +268,10 @@ export default class VVunderloreToolkitPlugin extends Plugin {
 		}
 
 		// 5) Re‐enable highlighting (always turn it back on)
-		this.settings.needsInstall = false;
 		this.settings.highlightEnabled = true;
 		await this.saveSettings();
 		this.enableHighlight();
-		
+		await this.updateVersionFile();
 		if (this.settingsTab) {
 		  this.settingsTab.display();
 		}
@@ -377,31 +375,15 @@ export default class VVunderloreToolkitPlugin extends Plugin {
 
   // ─── MARKER FILE CHECKS (first‐run detection) ───────────────────────
 
-  private async checkMarkerFile() {
-    const devForce = (window as any).forceNeedsInstall;
-    if (devForce) {
-      this.settings.needsInstall = true;
-      console.log('🧪 DEV MODE: Forcing needsInstall = true');
-      await this.saveSettings();
-      if (this.settingsTab) this.settingsTab.display();
-      return;
-    }
-
-    const markerPath = '.TEST_vvunderlore_installed';
-    const markerExists = await this.app.vault.adapter.exists(markerPath);
-    this.settings.needsInstall = !markerExists;
-
-    console.log(
-      markerExists
-        ? '✅ Marker file found → needsInstall = false'
-        : '🟡 Marker file NOT found → needsInstall = true'
-    );
-
+private async checkMarkerFile() {
+  const markerPath = '.vvunderlore_installed';
+  const markerExists = await this.app.vault.adapter.exists(markerPath);
+    this.isFirstRun = !markerExists;
+    delete (this.settings as any).needsInstall;
     await this.saveSettings();
-    if (this.settingsTab) {
-      this.settingsTab.display();
-    }
-  }
+    this.settingsTab.display();
+}
+
 
   // ─── MANIFEST SYNC ────────────────────────────────────────────────────
 
@@ -424,13 +406,14 @@ export default class VVunderloreToolkitPlugin extends Plugin {
       console.error('Error syncing manifest:', error);
       new Notice('Failed to sync manifest.');
     }
-  }
+  } 
 
   // ─── PLUGIN LIFECYCLE ─────────────────────────────────────────────────
 
   async onload() {
     await this.loadSettings();
 
+    
     this.backupManager = new BackupManager(this.app.vault);
 
     this.fileCacheManager = new ToolkitFileCacheManager(
@@ -465,7 +448,7 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     }
     
     // If highlighting was ON before, restore it now:
-	if (this.settings.highlightEnabled && !this.settings.needsInstall) {
+	if (this.settings.highlightEnabled ) {
 		this.enableHighlight();
 	  }
 
@@ -519,14 +502,21 @@ export default class VVunderloreToolkitPlugin extends Plugin {
       console.warn('Could not build requiresGraph (manifest.json missing or invalid).');
       this.requiresGraph = new Map();
     }
-  }
+      if (this.isFirstRun) {
+        (this.app.workspace as any).detachLeavesOfType('markdown');
+        const welcome = this.app.vault.getAbstractFileByPath('Welcome.md');
+        if (welcome instanceof TFile) {
+          this.app.workspace.getLeaf(true).openFile(welcome);
+        }
+      }
+}
 
   onunload() {
     this.disableHighlight();
     if (this.autoCheckInterval) {
       clearInterval(this.autoCheckInterval);
     }
-  }
+  } 
 
   scheduleAutoUpdateCheck() {
     this.autoCheckInterval = window.setInterval(() => {
@@ -1530,27 +1520,42 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     }
   }
 
-  async loadSettings() {
-	const loaded = (await this.loadData()) as Partial<ToolkitSettings>;
-	this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded);
-  
-	// Backfill our new fields if the stored data was missing them
-	if (typeof this.settings.rulesetCompendium !== "string") {
-	  this.settings.rulesetCompendium = "";
-	}
-	if (!Array.isArray(this.settings.rulesetReference)) {
-	  this.settings.rulesetReference = [];
-	}
-  
-	this.fileCacheManager = new ToolkitFileCacheManager(
-	  this.app.vault,
-	  loaded?.fileCache ?? {},
-	  async () => await this.saveSettings()
-	);
+async loadSettings() {
+  // 1) grab whatever’s on disk (might be null)
+  const raw = (await this.loadData()) as Partial<ToolkitSettings> | null;
+  const cleaned = raw ?? {};
 
-	// Give vault a moment to settle, then check for marker
-	setTimeout(() => this.checkMarkerFile(), 500);
-  } 
+  // 2) drop the old needsInstall flag
+  if ((cleaned as any).needsInstall != null) {
+    delete (cleaned as any).needsInstall;
+  }
+
+  // 3) merge defaults + cleaned data
+  this.settings = Object.assign({}, DEFAULT_SETTINGS, cleaned);
+
+  // 4) figure out whether we’re first-run
+  this.isFirstRun = !(await this.app.vault.adapter.exists('.vvunderlore_installed'));
+
+  // 5) set up cacheManager so saveSettings() can safely use .getCache()
+  this.fileCacheManager = new ToolkitFileCacheManager(
+    this.app.vault,
+    cleaned.fileCache ?? {},
+    async () => await this.saveSettings()
+  );
+
+  // 6) now persist the “cleaned” settings back to disk exactly once
+  await this.saveSettings();
+
+  // 7) back-fill any brand-new fields
+  if (typeof this.settings.rulesetCompendium !== 'string') {
+    this.settings.rulesetCompendium = '';
+  }
+  if (!Array.isArray(this.settings.rulesetReference)) {
+    this.settings.rulesetReference = [];
+  }
+}
+
+
 
   async saveSettings() {
     await this.saveData({
@@ -1632,12 +1637,6 @@ export default class VVunderloreToolkitPlugin extends Plugin {
       const markerPath = '.vvunderlore_installed';
       if (!(await this.app.vault.adapter.exists(markerPath))) {
         await this.app.vault.create(markerPath, '');
-      }
-
-      this.settings.needsInstall = false;
-      await this.saveSettings();
-      if (this.settingsTab) {
-        this.settingsTab.display();
       }
 
       if (this.settings.highlightEnabled) {
@@ -1946,7 +1945,6 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     if (!(await this.app.vault.adapter.exists(marker))) {
       await this.app.vault.create(marker, "");
     }
-    this.settings.needsInstall     = false;
     this.settings.highlightEnabled = true;
     await this.saveSettings();
     this.enableHighlight();
