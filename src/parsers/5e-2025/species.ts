@@ -28,8 +28,7 @@ export function parseSpeciesFile(
 
   // 1) Filter out reprints
 const rawVariants = json.race.filter((r: any) =>
-  (r.basicRules === true || r.basicRules2024 === true)
-  && !/\((?:Kaladesh|Zendikar|Amonkhet|Innistrad|Ixalan)\)$/.test(r.name)
+  !/\((?:Kaladesh|Zendikar|Amonkhet|Innistrad|Ixalan)\)$/.test(r.name)
 );
 
   // 2) Group by race name
@@ -175,7 +174,7 @@ const rawVariants = json.race.filter((r: any) =>
       });
 
       // 2) each subspecies
-      const subFolder = `Species/${safeName}/Subspecies`;
+      const subFolder = `Species/${safeName}/Races`;
       for (const sr of subs) {
         // turn semicolons → colons
         const display = sr.name.replace(/;/g, ":");

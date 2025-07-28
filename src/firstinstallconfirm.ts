@@ -75,62 +75,62 @@ export class ConfirmFreshInstallModal extends Modal {
       });
 
     // "Install!!" button
-    new ButtonComponent(buttonRow)
-      .setButtonText("Install!!")
-      .setCta() // makes it look like a primary action
-      .onClick(async () => {
-  
-        const opts: InstallOptions = {
-          compendium: this.plugin.settings.rulesetCompendium,
-          references: [...this.plugin.settings.rulesetReference],
-        };
+new ButtonComponent(buttonRow)
+  .setButtonText("Install!!")
+  .setCta()
+  .onClick(async () => {
 
-        // let the user know we're working
-        new Notice("⏳ Installing toolkit…");
-  
-        // grab the selections from settings
-        const compendium = this.plugin.settings.rulesetCompendium;
-        const references = [...this.plugin.settings.rulesetReference];
-  
-        try {
-          // run your new installer
-          await this.plugin.installFullToolkit({ compendium, references });
+    // 1) Show an in-modal Installing state (instead of a toast)
+    this.contentEl.empty();
+    this.titleEl.setText("⏳ Installing Toolkit…");
+    this.contentEl
+      .createEl("div", {
+        text: "Please hang tight—this may take a moment.",
+      })
+      .style.cssText = `
+        text-align: center;
+        margin-top: 1em;
+        line-height: 1.4em;
+      `;
 
+    // 2) Run your installer + compendium import
+    const compendium = this.plugin.settings.rulesetCompendium;
+    const references = [...this.plugin.settings.rulesetReference];
+    try {
+      await this.plugin.installFullToolkit({ compendium, references });
+      if (compendium) {
+        await importRulesetData({
+          app: this.app,
+          editionKey: compendium,
+          targetPath: "Compendium",
+        });
+      }
+    } catch (err) {
+      console.error("❌ installFullToolkit() failed:", err);
+      // you can swap to an error screen here if you like
+    }
 
-          if (compendium) {
-            await importRulesetData({
-              app: this.app,
-              editionKey: compendium,
-              targetPath: "Compendium"
-            });
-          }
-        } catch (err) {
-          console.error("❌ installToolkit() failed:", err);
-          new Notice("❌ Toolkit installation failed. See console.");
-        }
-        // 2. Save settings to disk
-        await this.plugin.saveSettings();
+    // 3) Persist settings (no settingsTab.display())
+    await this.plugin.saveSettings();
 
-        // 3. Redraw settings panel
-        this.plugin.settingsTab.display();
+    // 4) Swap to success screen
+    this.contentEl.empty();
+    this.titleEl.setText("✅ Toolkit Installed");
+    this.contentEl
+      .createEl("div", {
+        text: "Reloading vault in 3 seconds…",
+      })
+      .style.cssText = `
+        text-align: center;
+        margin-top: 1em;
+      `;
 
-        // 4. Show success screen inside modal
-        this.contentEl.empty();
-        this.titleEl.setText("✅ Toolkit Installed");
-
-        this.contentEl.createEl("div", {
-          text: "Reloading vault to finish setup. Don’t touch anything.",
-        }).style.cssText = `
-          font-size: 1em;
-          margin-top: 1em;
-          text-align: center;
-        `;
-
-        // 5. Delay, then close & reload
-        setTimeout(() => {
-          location.reload();
-        }, 3000);
-      })}
+    // 5) Finally reload
+    setTimeout(() => {
+      location.reload();
+    }, 3000);
+  });
+  }
 
   onClose() {
     this.contentEl.empty();

@@ -175,8 +175,8 @@ export function parseSpeciesFile(
       });
 
       // 2) each subspecies
-      const subFolder = `Species/${safeName}/Subspecies`;
-      for (const sr of subs) {
+      const subFolder = `Species/${safeName}/Races`;
+      for (const sr of subs) { 
         // turn semicolons → colons
         const display = sr.name.replace(/;/g, ":");
         const subLines: string[] = [`# ${display}`];
