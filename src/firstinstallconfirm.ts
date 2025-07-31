@@ -1,7 +1,7 @@
 // src/firstinstallconfirm.ts
 import { App, Modal, ButtonComponent, Notice, normalizePath } from 'obsidian';
 import type VVunderloreToolkitPlugin from './main';
-import { InstallOptions } from './main';
+import { InstallOptions, InstallingModal } from './main';
 import { importRulesetData } from "./rulesetInstaller";
 
 async function activateCopiedPlugins(app: App) {
@@ -65,57 +65,63 @@ export class ConfirmFreshInstallModal extends Modal {
       });
 
     // "Install!!" button
-new ButtonComponent(buttonRow)
-  .setButtonText("Install!!")
-  .setCta()
-  .onClick(async () => {
+    new ButtonComponent(buttonRow)
+      .setButtonText("Install!!")
+      .setCta()
+      .onClick(async () => {
+        this.app.workspace.getLeavesOfType('markdown').forEach(leaf => leaf.detach());
+        this.app.workspace.getLeavesOfType('graph').forEach(leaf => leaf.detach());
+      
+        this.close();
 
-    // 1) Show an in-modal Installing state (instead of a toast)
-    this.contentEl.empty();
-    this.titleEl.setText("⏳ Installing Toolkit…");
-    const statusMsg = this.contentEl
-      .createEl("div", {
-        text: "Please hang tight—this may take a moment.",
-      })
-      statusMsg.addClass("installingnote");
+        const installing = new InstallingModal(this.app);
+        installing.open();
 
-    // 2) Run your installer + compendium import
-    const compendium = this.plugin.settings.rulesetCompendium;
-    const references = [...this.plugin.settings.rulesetReference];
-    try {
-      await this.plugin.installFullToolkit({ compendium, references });
-      if (compendium) {
-        await importRulesetData({
-          app: this.app,
-          editionKey: compendium,
-          targetPath: "Compendium",
-        });
+        // 2) Run your installer + compendium import
+        const compendium = this.plugin.settings.rulesetCompendium;
+        const references = [...this.plugin.settings.rulesetReference];
+        try {
+          await this.plugin.installFullToolkit({ compendium, references });
+          if (compendium) {
+            await importRulesetData({
+              app: this.app,
+              editionKey: compendium,
+              targetPath: "Compendium",
+            });
+          }
+        } catch (err) {
+          console.error("❌ installFullToolkit() failed:", err);
+        }
+
+        // 3) Persist settings (no settingsTab.display())
+        await this.plugin.saveSettings();
+
+        // 4) Swap to success screen
+        installing.close();
+
+        const successModal = new Modal(this.app);
+        successModal.onOpen = () => {
+          successModal.contentEl.empty();
+          successModal.titleEl.setText("✅ Toolkit Installed");
+          const msg = successModal.contentEl.createEl("div", {
+            text: "Reloading vault in 3 seconds…",
+          });
+          msg.addClass("installsuccess");
+        };
+        successModal.open();
+
+        // 5) reload
+        setTimeout(() => {
+          successModal.close();
+          location.reload();
+        }, 3000);
+      });
       }
-    } catch (err) {
-      console.error("❌ installFullToolkit() failed:", err);
-      // you can swap to an error screen here if you like
+
+      onClose() {
+        this.contentEl.empty();
+      }
     }
 
-    // 3) Persist settings (no settingsTab.display())
-    await this.plugin.saveSettings();
 
-    // 4) Swap to success screen
-    this.contentEl.empty();
-    this.titleEl.setText("✅ Toolkit Installed");
-    const successMsg = this.contentEl
-      .createEl("div", {
-        text: "Reloading vault in 3 seconds…",
-      })
-      successMsg.addClass("installsuccess");
-
-    // 5) Finally reload
-    setTimeout(() => {
-      location.reload();
-    }, 3000);
-  });
-  }
-
-  onClose() {
-    this.contentEl.empty();
-  }
-}
+ 

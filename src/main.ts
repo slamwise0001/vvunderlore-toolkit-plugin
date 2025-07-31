@@ -499,16 +499,23 @@ private async checkMarkerFile() {
       console.warn('Could not build requiresGraph (manifest.json missing or invalid).');
       this.requiresGraph = new Map();
     }
+if (this.isFirstRun) {
+  this.app.workspace.onLayoutReady(() => {
+    try {
+      this.app.workspace.detachLeavesOfType("settings");
 
-      if (this.isFirstRun) {
-        (this.app.workspace as any).detachLeavesOfType('markdown');
-        const welcome = this.app.vault.getAbstractFileByPath('Welcome.md');
-        if (welcome instanceof TFile) {
-            setTimeout(() => {
-          this.app.workspace.getLeaf(true).openFile(welcome);
-          }, 200);
-        }
+      const welcome = this.app.vault.getAbstractFileByPath("Welcome.md");
+      if (welcome instanceof TFile) {
+        this.app.workspace.getLeaf(true).openFile(welcome);
+        console.log("✅ Welcome.md opened after install");
+      } else {
+        console.warn("⚠️ Welcome.md not found");
       }
+    } catch (err) {
+      console.error("❌ Failed to open Welcome.md:", err);
+    }
+  });
+}
 }
 
   onunload() {
@@ -1830,9 +1837,6 @@ async loadSettings() {
       throw new Error("No compendium edition selected");
     }
 
-  // 1) Show the “Installing…” spinner
-  const placeholder = new InstallingModal(this.app);
-  placeholder.open();
 
   let installSucceeded = false;
   try {
@@ -1931,7 +1935,6 @@ async loadSettings() {
     console.error("❌ installFullToolkit()", err);
   } finally {
     // only now close the spinner & redraw the UI
-    placeholder.close();
     if (this.settingsTab) this.settingsTab.display();
     new Notice(
       installSucceeded
