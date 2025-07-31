@@ -59,6 +59,7 @@
   border-bottom: 1px solid var(--divider-color);
 }
 
+
 .vk-section-header h5 {
   margin: 0 !important;
   padding: 0 !important;
@@ -481,8 +482,9 @@
 }
 
 .settings-kofi {
-  background-color: #ff5900;
-  color: white;
+  background-color: #ff5900 !important;
+  color: white !important;
+  font-weight: bold;
 }
 
 .install-rulesheader {
@@ -490,7 +492,7 @@
 }
 
 .settings-versionrow {
-  margin-bottom: 1em;
+  margin-bottom: .5em;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -520,6 +522,7 @@
 .settings-lastchecked {
   font-size: 11px;
   color: var(--text-muted);
+  margin-bottom: 0.75em;
 }
 
 .dropdownwidth {

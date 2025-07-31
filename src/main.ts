@@ -178,7 +178,10 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     '.gitattributes',
     '.github',
     'README.md',
-    'Compendium'
+    'Compendium',
+    `${this.app.vault.configDir}/plugins/vvunderlore-toolkit-plugin/manifest.json`,
+    `${this.app.vault.configDir}/plugins/vvunderlore-toolkit-plugin/main.js`,
+    `${this.app.vault.configDir}/plugins/vvunderlore-toolkit-plugin/styles.css`
   ];
 
   private isFirstRun: boolean = false;
@@ -389,8 +392,8 @@ private async checkMarkerFile() {
       const res = await requestUrl({
         url: 'https://raw.githubusercontent.com/slamwise0001/VVunderlore-Toolkit-Full/main/manifest.json'
     });
-    
-      const manifest = await res.json();
+
+      const manifest = res.json;
       this.settings.latestDefaults = manifest.defaultPaths || {};
       this.manifestCache = manifest;
 
@@ -408,7 +411,7 @@ private async checkMarkerFile() {
 
   async onload() {
     await this.loadSettings();
-
+ 
     
     this.backupManager = new BackupManager(this.app);
 
@@ -496,11 +499,14 @@ private async checkMarkerFile() {
       console.warn('Could not build requiresGraph (manifest.json missing or invalid).');
       this.requiresGraph = new Map();
     }
+
       if (this.isFirstRun) {
         (this.app.workspace as any).detachLeavesOfType('markdown');
         const welcome = this.app.vault.getAbstractFileByPath('Welcome.md');
         if (welcome instanceof TFile) {
+            setTimeout(() => {
           this.app.workspace.getLeaf(true).openFile(welcome);
+          }, 200);
         }
       }
 }

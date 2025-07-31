@@ -1253,7 +1253,7 @@ removeDemoSetting
 		Object.assign(footer.style, {
 		fontSize: '0.85em',
 		color: 'var(--text-muted)',
-		marginTop: '2em',
+		marginTop: '1em',
 		});
 		footer.createEl('span', {
 			text: `VVunderlore Toolkit Plugin v${this.plugin.manifest.version} • `
