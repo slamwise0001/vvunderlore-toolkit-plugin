@@ -129,18 +129,12 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 	}   
 	private renderHeader(root: HTMLElement): void {
 		const header = root.createDiv();
-		header.style.display = 'flex';
-		header.style.justifyContent = 'space-between';
-		header.style.alignItems = 'center';
-		header.style.borderBottom = '1px solid var(--divider-color)';
-		header.style.marginBottom = '2em';
-		header.style.paddingBottom = '0.5em';
+		header.addClass("settings-header");
 	  
 		header.createEl('h3', { text: 'VVunderlore Toolkit Settings' });
 	  
 		const headerBtns = header.createDiv();
-		headerBtns.style.display = 'flex';
-		headerBtns.style.gap = '0.5em';
+		headerBtns.addClass("settings-header-btn");
 	  
 		const docsBtn = headerBtns.createEl('button', { text: 'Docs' });
 		docsBtn.onclick = () => window.open('http://vvunderlore.com', '_blank');
@@ -153,8 +147,7 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 		  text: '☕ Ko-fi',
 		  cls: 'mod-cta',
 		});
-		kofiBtn.style.backgroundColor = '#ff5900';
-		kofiBtn.style.color = 'white';
+		kofiBtn.addClass("settings-kofi");
 		kofiBtn.onclick = () => window.open('https://ko-fi.com/vvunderlore', '_blank');
 	  }
 	  
@@ -180,7 +173,7 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 			cls: 'vv-card-title',
 			});
 			// Give the title a little bottom margin
-			title.style.marginBottom = '0.5em';
+			title.addClass("vv-mb-sm");
 		
 			// 3) Instructional copy
 			const desc = card.createEl('p', {
@@ -189,7 +182,7 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 			cls: 'vv-card-desc',
 			});
 			// Slight bottom margin so it doesn't butt right up against the buttons
-			desc.style.marginBottom = '1.25em';
+			desc.addClass("vv-mb-lg");
 
 // ─── RULESET / REFERENCE GRID ───────────────────────────────────────────────────
 const plugin = this.plugin;
@@ -208,9 +201,9 @@ Object.assign(grid.style, {
 
 // 2) Header row
 const labelRs = grid.createEl('div', { text: 'Ruleset' });
-labelRs.style.fontWeight = 'bold';
+labelRs.addClass("install-rulesheader");
 const labelRef = grid.createEl('div', { text: 'Reference (optional)' });
-labelRef.style.fontWeight = 'bold';
+labelRef.addClass("install-rulesheader");
 
 // 3) Input cells
 const rsCell = grid.createDiv({ attr: { style: 'text-align:center' } });
@@ -237,7 +230,7 @@ const rulesetSpan = summaryBar.createSpan({
       : ''
   }`,
 });
-rulesetSpan.style.fontWeight = 'bold';
+rulesetSpan.addClass("install-rulesheader");
 summaryBar.createSpan({ text: 'References:' });
 const chipsWrapper = summaryBar.createDiv();
 Object.assign(chipsWrapper.style, { display: 'flex', gap: '4px' });
@@ -405,7 +398,6 @@ rsDropdown
 	private forceWarningEl: HTMLElement | null = null;
 
 	async display(): Promise<void> {
-   		console.log("🔧 display() called");
 		const { containerEl } = this;
 		const savedScrollTop = containerEl.scrollTop;
 		containerEl.empty();
@@ -413,7 +405,6 @@ rsDropdown
 		const markerPath = '.vvunderlore_installed';
 		const isInstalled = await this.app.vault.adapter.exists(markerPath);
 		if (!isInstalled) {
-			console.log("🧪 first-run: marker missing → show installer card");
 			this.renderFirstRunCard(containerEl);
 				containerEl.scrollTop = savedScrollTop;
 			return;
@@ -425,18 +416,10 @@ rsDropdown
 		
 		/** ─── VERSION SECTION ─── */
 		const versionRow = containerEl.createDiv();
-		versionRow.style.marginBottom = '1em';
-		versionRow.style.display = 'flex';
-		versionRow.style.justifyContent = 'space-between';
-		versionRow.style.alignItems = 'flex-start';
-		versionRow.style.gap = '2em';
-		versionRow.style.flexWrap = 'wrap';
-		versionRow.style.borderBottom = '1px solid var(--divider-color)';
+		versionRow.addClass("settings-versionrow");
 
 		const versionInfo = versionRow.createDiv();
-		versionInfo.style.display = 'flex';
-		versionInfo.style.flexDirection = 'column';
-		versionInfo.style.gap = '0.25em';
+		versionInfo.addClass("settings-versioninfo");
 
 		let installed = 'Not installed';
 		try {
@@ -454,8 +437,7 @@ rsDropdown
 		
 		this.versionValueEl = vaultRow.createSpan();  // 🔥 save ref
 		this.versionValueEl.textContent = installed;
-		this.versionValueEl.style.fontWeight = 'bold';
-		this.versionValueEl.style.color = isMatch ? 'var(--text-success)' : 'var(--text-error)';
+		this.versionValueEl.addClass("vv-bold", isMatch ? "vv-success" : "vv-error");
 		
 		const latestRow = versionInfo.createEl('div', { text: 'Latest Official Version: ' });
 		latestRow.createSpan({
@@ -464,14 +446,10 @@ rsDropdown
 		});
 
 		const versionControls = versionRow.createDiv();
-		versionControls.style.display = 'flex';
-		versionControls.style.flexDirection = 'column';
-		versionControls.style.alignItems = 'flex-end';
-		versionControls.style.gap = '0.5em';
+		versionControls.addClass("settings-versioncontrols");
 
 		const buttonRow = versionControls.createDiv();
-		buttonRow.style.display = 'flex';
-		buttonRow.style.gap = '0.5em';
+		buttonRow.addClass("settings-buttonrow");
 
 		const checkBtn = buttonRow.createEl('button', {
 			text: installed !== latest ? 'Preview Update' : 'Check for Updates',
@@ -490,8 +468,7 @@ rsDropdown
 		});
 		if (this.plugin.settings.lastChecked) {
 			const lastChecked = versionControls.createDiv();
-			lastChecked.style.fontSize = '11px';
-			lastChecked.style.color = 'var(--text-muted)';
+			lastChecked.addClass("settings-lastchecked");
 			lastChecked.textContent = `Last checked: ${new Date(this.plugin.settings.lastChecked).toLocaleString()}`;
 		}
 
@@ -544,19 +521,16 @@ rsDropdown
 		transform: fixDetails.open ? 'rotate(0deg)' : 'rotate(180deg)',
 		});
 		fixDetails.ontoggle = () => {
-		fixToggleIcon.style.transform = fixDetails.open ? 'rotate(0deg)' : 'rotate(180deg)';
+		fixToggleIcon.addClass("vv-rotated");
 		};
 
 		// ─── Body (same as before, just indented under <details>) ───────────────────
 		const fixBody = fixDetails.createDiv({ cls: 'vk-section-body' });
-		fixBody.style.paddingLeft = '1em';
+		fixBody.addClass("vv-pl-md");
 
 		// ── Button + warning row ───────────────────────────────────────────────────
 		const fixButtonRow = fixBody.createDiv();
-		fixButtonRow.style.display = 'flex';
-		fixButtonRow.style.justifyContent = 'space-between';
-		fixButtonRow.style.alignItems = 'center';
-		fixButtonRow.style.marginTop = '0.5em';
+		fixButtonRow.addClass("vv-checkbox-row", "vv-justify-between");
 
 		const warningContainer = fixButtonRow.createDiv();
 		this.forceWarningEl = warningContainer;
@@ -572,15 +546,11 @@ rsDropdown
 
 		const latestVersionStr = (this.plugin.settings.latestToolkitVersion ?? '').trim();
 
-		console.log("🧪 Comparing versions:", installedVersionStr, latestVersionStr);
-
 		if (installedVersionStr && latestVersionStr && installedVersionStr !== latestVersionStr) {
 		const warn = warningContainer.createEl('div', {
 			text: `⚠️ New version available (${installedVersionStr} → ${latestVersionStr}) — use regular update instead`,
 		});
-		warn.style.fontSize = '0.85em';
-		warn.style.color = 'var(--text-muted)';
-		warn.style.fontStyle = 'italic';
+		warn.addClass("vv-small", "vv-muted", "vv-italic");
 		warn.setAttr(
 			'title',
 			'Force updating while a new version is available may skip important changes.'
@@ -589,8 +559,7 @@ rsDropdown
 
 		// ➡️ Right side: action buttons
 		const buttonGroup = fixButtonRow.createDiv();
-		buttonGroup.style.display = 'flex';
-		buttonGroup.style.gap = '0.5em';
+		buttonGroup.addClass("settings-buttonrow");
 
 		buttonGroup
 		.createEl("button", { text: "Force Update Vault", cls: "mod-cta" })
@@ -634,7 +603,7 @@ fixBody.createEl('div', {
 
 		// ─── New “re-parse gamesets” toggle ─────────────────────────────────────
 		const reparseRow = fixBody.createDiv();
-		reparseRow.style.marginTop = "0.5em";
+		reparseRow.addClass("vv-mt-sm");
 		new Setting(reparseRow)
 		.setName("Re-parse Game Sets On Force Update")
 		.setDesc(
@@ -703,12 +672,12 @@ fixBody.createEl('div', {
 
 		// Collapse rotation behavior
 		backupDetails.ontoggle = () => {
-		backupVvIcon.style.transform = backupDetails.open ? 'rotate(0deg)' : 'rotate(180deg)';
+		backupVvIcon.addClass("vv-rotated");
 		};
 
 		// 2) Body
 		const backupBody = backupDetails.createDiv({ cls: 'vk-section-body' });
-		backupBody.style.paddingLeft = '1em';
+		backupBody.addClass("vv-pl-md");
 
 		new Setting(backupBody)
 		.setName('Auto-Backup Before Update')
@@ -819,7 +788,7 @@ fixBody.createEl('div', {
 		});
 
 		customizationDetails.ontoggle = () => {
-		customVvIcon.style.transform = customizationDetails.open ? 'rotate(0deg)' : 'rotate(180deg)';
+		customVvIcon.addClass("vv-rotated");
 		};
 
 		const customizationBodyWrapper = customizationDetails.createDiv({
@@ -848,7 +817,7 @@ fixBody.createEl('div', {
 		const control = settingItem.createDiv({ cls: 'setting-item-control' });
 
 		const dropdown = new DropdownComponent(control);
-		dropdown.selectEl.style.minWidth = '220px';
+		dropdown.selectEl.addClass("dropdownwidth");
 		dropdown.addOption('', 'Select an item…');
 		this.plugin.manifestCache.files
 		.filter(f => !f.optional)
@@ -881,9 +850,7 @@ fixBody.createEl('div', {
 		if (items.length === 0) {
 			// No table if nothing to show — just an empty state message
 			const emptyMsg = skipTableWrapper.createEl('div', { text: 'No items skipped.' });
-			emptyMsg.style.textAlign = 'center';
-			emptyMsg.style.opacity = '0.6';
-			emptyMsg.style.padding = '0.5em';
+			emptyMsg.addClass("settings-emptymsg");
 			return;
 		}
 
@@ -898,20 +865,12 @@ fixBody.createEl('div', {
 		items.forEach((entry) => {
 			const row = body.insertRow();
 			const contentCell = row.insertCell();
-			contentCell.colSpan = 1;
-			contentCell.style.display = 'flex';
-			contentCell.style.justifyContent = 'space-between';
-			contentCell.style.paddingLeft = '4em';
-			contentCell.style.alignItems = 'center';
-			contentCell.style.gap = '1em';
-			contentCell.style.fontWeight = 'bold';
+			contentCell.addClass("settings-filetable");
 
 			contentCell.createSpan({ text: entry.manifestKey });
 
 			const removeLink = contentCell.createEl('a', { text: 'Remove entry', href: '#' });
-			removeLink.style.fontSize = '0.8em';
-			removeLink.style.color = 'var(--text-faint)';
-			removeLink.style.textDecoration = 'underline';
+			removeLink.addClass("settings-removelink");
 			removeLink.onclick = async (e) => {
 			e.preventDefault();
 			this.plugin.settings.customPaths.remove(entry);
@@ -945,14 +904,13 @@ fixBody.createEl('div', {
 
 		// New full-width block below for controls
 		const remapControlBlock = remapSection.createDiv({ cls: 'vk-inline-add-controls' });
-		remapControlBlock.style.flexWrap = 'wrap';
-		remapControlBlock.style.marginTop = '0.5em';
+		remapControlBlock.addClass("settings-remapcontrol");
 
 		let remapDrop: DropdownComponent;
 		let remapInput: HTMLInputElement;
 
 		remapDrop = new DropdownComponent(remapControlBlock);
-		remapDrop.selectEl.style.minWidth = '220px';
+		remapDrop.selectEl.addClass("dropdownwidth");
 		remapDrop.addOption('', 'Select an item…');
 		this.plugin.manifestCache.files.forEach(f =>
 			remapDrop.addOption(f.path, f.displayName ?? f.path.split('/').pop()!)
@@ -994,9 +952,7 @@ fixBody.createEl('div', {
 
 		if (toRemap.length === 0) {
 			const emptyMsg = remapTableWrapper.createEl('div', { text: 'No custom paths defined.' });
-			emptyMsg.style.textAlign = 'center';
-			emptyMsg.style.opacity = '0.6';
-			emptyMsg.style.padding = '0.5em';
+			emptyMsg.addClass("settings-emptymsg");
 			return;
 		}
 
@@ -1017,9 +973,7 @@ fixBody.createEl('div', {
 			// Remove link
 			const removeCell = row.insertCell();
 			const removeLink = removeCell.createEl('a', { text: 'Remove entry', href: '#' });
-			removeLink.style.fontSize = '0.8em';
-			removeLink.style.color = 'var(--text-faint)';
-			removeLink.style.textDecoration = 'underline';
+			removeLink.addClass("settings-removelink");
 			removeLink.onclick = async (e) => {
 			e.preventDefault();
 			this.plugin.settings.customPaths.remove(entry);
@@ -1087,12 +1041,12 @@ fixBody.createEl('div', {
 
 		// 1d) Make the icon rotate when the <details> opens/closes:
 		highlightDetails.ontoggle = () => {
-		hlToggleIcon.style.transform = highlightDetails.open ? 'rotate(0deg)' : 'rotate(180deg)';
+		hlToggleIcon.addClass("vv-rotated");
 		};
 
 		// 2) Create the body container (indented, same as backup)
 		const highlightBody = highlightDetails.createDiv({ cls: 'vk-section-body' });
-		highlightBody.style.paddingLeft = '1em';
+		highlightBody.addClass("vv-pl-md");
 
 		// 3) “Enable Highlight” toggle as a Setting inside highlightBody:
 		new Setting(highlightBody)
@@ -1176,7 +1130,7 @@ fixBody.createEl('div', {
 
 // 1) Create a Setting row, but immediately strip off its default top‐border:
 const removeDemoSetting = new Setting(containerEl);
-(removeDemoSetting.settingEl as HTMLElement).style.borderTop = 'none';
+(removeDemoSetting.settingEl as HTMLElement).addClass("vv-no-border-top");
 
 removeDemoSetting
   .setName('Remove Demo Files')
@@ -1328,9 +1282,7 @@ removeDemoSetting
 	  
 		// update just the version span
 		this.versionValueEl.textContent = installed || 'Not installed';
-		this.versionValueEl.style.color = isMatch
-		  ? 'var(--text-success)'
-		  : 'var(--text-error)';
+		this.versionValueEl.addClass(isMatch ? "vv-success" : "vv-error");
 	  
 		// clear and re-render just the warning container
 		this.forceWarningEl.empty();
@@ -1338,11 +1290,7 @@ removeDemoSetting
 		  const warn = this.forceWarningEl.createDiv({
 			text: `⚠️ New version available (${installed} → ${latest}) — use regular update instead`,
 		  });
-		  warn.style.cssText = `
-			font-size: 0.85em;
-			color: var(--text-muted);
-			font-style: italic;
-		  `;
+		  warn.addClass("vv-small", "vv-muted", "vv-italic");
 		  warn.setAttr('title', 'Force updating while a new version is available may skip important changes.');
 		}
 	  }

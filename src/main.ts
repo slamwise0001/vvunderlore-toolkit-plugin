@@ -6,7 +6,8 @@ import {
   Setting,
   TFolder,
   TFile,
-  Vault
+  Vault,
+  requestUrl
 } from 'obsidian'; 
  
 import { ToolkitSettingsTab } from './settings';
@@ -17,6 +18,7 @@ import { showCustomInstallModal } from './customInstallModal';
 import { AVAILABLE_EDITIONS } from './editions';
 import { importRulesetData } from './rulesetInstaller';
 import { ConfirmFreshInstallModal } from './firstinstallconfirm';
+import "../styles.css";
 
 function getRulesetDisplayName(key: string): string {
  const ed = AVAILABLE_EDITIONS.find(e => e.id === key);
@@ -52,8 +54,7 @@ class InstallingModal extends Modal {
       }
     );
     const txt = this.contentEl.createDiv({ text: 'Installing…', cls: 'mod-quiet' });
-    txt.style.cssText =
-      'font-style: italic; color: var(--text-muted); text-align: center; padding: 1em;';
+    txt.addClass("installmodal-txt");
   }
   onClose() {
     this.contentEl.empty();
@@ -239,7 +240,6 @@ export default class VVunderloreToolkitPlugin extends Plugin {
       if (entry.isFolder) {
         if (!(await this.app.vault.adapter.exists(entry.path))) {
           await this.app.vault.createFolder(entry.path);
-          console.log(`Created folder: ${entry.path}`);
         }
       } else {
         // File → find ManifestFileEntry
@@ -247,7 +247,6 @@ export default class VVunderloreToolkitPlugin extends Plugin {
           (f) => f.path === entry.path
         );
         if (!manifestEntry) {
-          console.warn(`Could not find manifest entry for file: ${entry.path}`);
           continue;
         }
         // Reuse your existing “updateEntryFromManifest” (force = true)
@@ -341,7 +340,6 @@ export default class VVunderloreToolkitPlugin extends Plugin {
   // ─── REMOTE BASELINE CACHING ─────────────────────────────────────────
 
   public async fetchRemoteBaseline(): Promise<void> {
-    console.log('🔁 fetchRemoteBaseline() called');
 
     if (!this.manifestCache || !Array.isArray(this.manifestCache.files)) {
       console.warn('⚠️ manifestCache is missing or invalid');
@@ -370,7 +368,6 @@ export default class VVunderloreToolkitPlugin extends Plugin {
       }
     }
 
-    console.log('📦 Final cache:', this.fileCacheManager.getCache());
   }
 
   // ─── MARKER FILE CHECKS (first‐run detection) ───────────────────────
@@ -389,10 +386,10 @@ private async checkMarkerFile() {
 
   async syncManifest(): Promise<void> {
     try {
-      const res = await fetch(
-        'https://raw.githubusercontent.com/slamwise0001/VVunderlore-Toolkit-Full/main/manifest.json'
-      );
-      if (!res.ok) throw new Error(`Failed to fetch manifest: ${res.statusText}`);
+      const res = await requestUrl({
+        url: 'https://raw.githubusercontent.com/slamwise0001/VVunderlore-Toolkit-Full/main/manifest.json'
+    });
+    
       const manifest = await res.json();
       this.settings.latestDefaults = manifest.defaultPaths || {};
       this.manifestCache = manifest;
@@ -401,7 +398,6 @@ private async checkMarkerFile() {
       await this.app.vault.adapter.write('manifest.json', manifestContent);
       await this.saveSettings();
 
-      console.log('Manifest synced and local manifest updated.');
     } catch (error) {
       console.error('Error syncing manifest:', error);
       new Notice('Failed to sync manifest.');
@@ -414,7 +410,7 @@ private async checkMarkerFile() {
     await this.loadSettings();
 
     
-    this.backupManager = new BackupManager(this.app.vault);
+    this.backupManager = new BackupManager(this.app);
 
     this.fileCacheManager = new ToolkitFileCacheManager(
       this.app.vault,
@@ -442,7 +438,6 @@ private async checkMarkerFile() {
     try {
       const content = await this.app.vault.adapter.read('manifest.json');
       this.manifestCache = JSON.parse(content);
-      console.log('✅ Loaded manifest from vault:', this.manifestCache);
     } catch (err) {
       console.warn('Manifest not found in vault; will fetch from GitHub shortly.');
     }
@@ -466,7 +461,6 @@ private async checkMarkerFile() {
         return map;
       }, {} as Record<string, string>);
 
-      console.log('📦 Cached Files:', this.fileCacheManager.getCache());
     }, 250);
 
     this.scheduleAutoUpdateCheck();
@@ -530,7 +524,6 @@ private async checkMarkerFile() {
     this.settings.backupFiles = this.settings.backupFiles || {};
     this.settings.backupFiles[filePath] = content;
     await this.saveSettings();
-    console.log(`Backup stored for ${filePath}`);
   }
 
   async undoForceUpdate(): Promise<void> {
@@ -541,10 +534,8 @@ private async checkMarkerFile() {
     for (const [filePath, backupContent] of Object.entries(this.settings.backupFiles)) {
       if (await this.app.vault.adapter.exists(filePath)) {
         await this.app.vault.adapter.write(filePath, backupContent);
-        console.log(`Restored ${filePath}`);
       } else {
         await this.app.vault.create(filePath, backupContent);
-        console.log(`Recreated and restored ${filePath}`);
       }
     }
     new Notice('✅ Force update undone.');
@@ -560,7 +551,6 @@ private async checkMarkerFile() {
         const folderPath = folderEntry.path;
         if (!(await this.app.vault.adapter.exists(folderPath))) {
           await this.app.vault.createFolder(folderPath);
-          console.log(`📁 Created missing folder: ${folderPath}`);
         }
       }
     }
@@ -817,17 +807,13 @@ private async checkMarkerFile() {
   
 			// Left: file path + action note
 			const label = row.createDiv();
-			label.style.flexGrow = '1';
-			label.style.display = 'flex';
-			label.style.flexDirection = 'column';
+      label.addClass("forceupdate-flexcolumn");
   
 			const labelWrapper = label.createDiv();
 			labelWrapper.textContent = item.filePath;
   
 			const note = label.createDiv({ text: item.action });
-			note.style.fontSize = '13px';
-			note.style.color = 'var(--text-muted)';
-			note.style.fontStyle = 'italic';
+			note.addClass("forceupdate-note");
   
 			// Right: checkbox
 			const checkbox = row.createEl('input', { type: 'checkbox' });
@@ -874,12 +860,12 @@ private async checkMarkerFile() {
 			transform: 'rotate(180deg)',
 		  });
 		  denyDetails.ontoggle = () => {
-			toggleIcon.style.transform = denyDetails.open ? 'rotate(0deg)' : 'rotate(180deg)';
+			toggleIcon.toggleClass("vv-rotated", !denyDetails.open);
 		  };
   
 		  // Body of <details> — each deny-listed item is faint and disabled
 		  const denyBody = denyDetails.createDiv({ cls: 'vk-section-body' });
-		  denyBody.style.paddingLeft = '1em';
+		  denyBody.addClass("denylist");
   
 		  this.denied.forEach((item) => {
 			const row = denyBody.createDiv();
@@ -895,12 +881,10 @@ private async checkMarkerFile() {
   
 			const labelWrapper = row.createDiv();
 			labelWrapper.textContent = item.filePath;
-			labelWrapper.style.textDecoration = 'line-through';
+			labelWrapper.addClass("forceupdate-labelwrapper");
   
 			const note = row.createDiv({ text: item.action });
-			note.style.fontSize = '13px';
-			note.style.color = 'var(--text-faint)';
-			note.style.fontStyle = 'italic';
+			note.addClass("forceupdate-note-b");
   
 			// Deny-listed checkbox is disabled
 			const checkbox = row.createEl('input', { type: 'checkbox' });
@@ -953,13 +937,11 @@ private async checkMarkerFile() {
   async updateEntryFromManifest(entry: ManifestFileEntry, force: boolean = false) {
     const custom = this.settings.customPaths.find((c) => c.manifestKey === entry.key);
     if (custom?.doUpdate === false) {
-      console.log(`⏭️ Skipping ${entry.key} (${entry.displayName}) — blacklisted`);
       return;
     }
 
     const finalVaultPath = custom?.vaultPath ?? this.resolveVaultPath(entry.path);
     if (!force && (await this.fileCacheManager.isUpToDate(finalVaultPath))) {
-      console.log(`✔️ Already up to date: ${entry.displayName}`);
       return;
     }
 
@@ -969,7 +951,6 @@ private async checkMarkerFile() {
       const text = await res.text();
       await this.app.vault.adapter.write(finalVaultPath, text);
       await this.fileCacheManager.updateCache(finalVaultPath, text, entry.path);
-      console.log(`✅ Updated ${entry.displayName} → ${finalVaultPath}`);
     } catch (e) {
       console.error(`❌ Error updating ${entry.displayName}:`, e);
     }
@@ -1225,20 +1206,19 @@ private async checkMarkerFile() {
 			transform: 'rotate(180deg)',
 		  });
 		  denyDetails.ontoggle = () => {
-			toggleIcon.style.transform = denyDetails.open ? 'rotate(0deg)' : 'rotate(180deg)';
+			  toggleIcon.toggleClass("vv-rotated", !denyDetails.open);
 		  };
   
 		  // Body of the details: a simple <ul> containing only deny‐listed lines
 		  const denyBody = denyDetails.createDiv({ cls: 'vk-section-body' });
-		  denyBody.style.paddingLeft = '1em';
+		  denyBody.addClass("denylist");
 		  const denyUl = denyBody.createEl('ul');
 		  this.denied.forEach((line) => {
 			const li = denyUl.createEl('li', { text: line });
-			li.style.color = 'var(--text-faint)';
-			li.style.fontStyle = 'italic';
+			li.addClass("forceupdate-note-c");
 		  });
 		}
-  
+   
 		const buttonRow = this.contentEl.createEl('div');
 		Object.assign(buttonRow.style, {
 		  display: 'flex',
@@ -1483,12 +1463,9 @@ private async checkMarkerFile() {
       console.error('❌ Failed to fetch remote toolkit version:', err);
     }
 
-    console.log({ localTK, remoteTK });
     if (isNewerVersion(remoteTK, localTK)) {
-      new Notice(`⚠️ Toolkit update available! Installed: v${localTK}, Latest: v${remoteTK}`);
+      new Notice(`⚠️ Toolkit update available! Latest: v${remoteTK}`);
       await this.fetchRemoteBaseline();
-    } else {
-      new Notice(`✅ Toolkit is up to date (v${localTK})`);
     }
 
     // 4) Read local plugin version
@@ -1501,14 +1478,10 @@ private async checkMarkerFile() {
       const data = await res.json();
       remotePL = data.version || remotePL;
     } catch (err) {
-      console.error('❌ Failed to fetch remote plugin version:', err);
     }
 
-    console.log({ localPL, remotePL });
     if (isNewerVersion(remotePL, localPL)) {
-      new Notice(`⚙️ Plugin update available! Installed: v${localPL}, Latest: v${remotePL}`);
-    } else {
-      new Notice(`✅ Plugin is up to date (v${localPL})`);
+      new Notice(`⚙️ Plugin update available! Latest: v${remotePL}`);
     }
 
     // 6) Fetch changelog for UI display
@@ -1577,7 +1550,7 @@ async loadSettings() {
 
   async updateFullToolkitRepo(): Promise<void> {
     const excluded = [
-      '.obsidian',
+      this.app.vault.configDir,
       '.gitignore',
       '.gitattributes',
       '.DS_Store',
@@ -1646,7 +1619,7 @@ async loadSettings() {
       new Notice('✅ VVunderlore Toolkit successfully installed!');
     } catch (err) {
       console.error('❌ updateFullToolkitRepo() error:', err);
-      new Notice('❌ Failed to install toolkit. See console for details.');
+      new Notice('❌ Failed to update toolkit. See console for details.');
     }
   }
 
@@ -1670,7 +1643,6 @@ async loadSettings() {
       for (const ghPath of allManifestFiles) {
         const override = fileOverrides[ghPath];
         if (override?.doUpdate === false) {
-          console.log(`⏭️ Skipping deny-listed: ${ghPath}`);
           continue;
         }
 
@@ -1698,8 +1670,8 @@ async loadSettings() {
         await this.settingsTab.updateVersionDisplay();
       }
     } catch (err) {
-      console.error('❌ Update failed. Version not updated.', err);
-      new Notice('❌ Update failed. See console for details. Version file NOT changed.');
+      console.error('❌ CUstom update failed. Version not updated.', err);
+      new Notice('❌ Update failed. See console for details.');
     }
 
     if (this.settings.highlightEnabled) {
@@ -1709,7 +1681,7 @@ async loadSettings() {
 
   async updateFolderFromGitHub(githubFolderPath: string, vaultFolderPath: string) {
     const excluded = [
-      '.obsidian',
+      this.app.vault.configDir,
       '.gitignore',
       '.gitattributes',
       '.DS_Store',
@@ -1760,7 +1732,7 @@ async loadSettings() {
       await this.saveSettings();
       new Notice(`✅ Folder synced: ${vaultFolderPath}`);
     } catch (error) {
-      console.error(`❌ Failed to sync folder: ${vaultFolderPath}`, error);
+      console.error(`❌ Failed to sync folder with m-repo: ${vaultFolderPath}`, error);
       new Notice(`❌ Failed to update folder: ${vaultFolderPath}`);
     }
   }
@@ -1827,7 +1799,6 @@ async loadSettings() {
 
   async updateVersionFile() {
     if (!this.settings.latestToolkitVersion) {
-      console.warn('No latest version found; skipping version file update.');
       return;
     }
     const versionPath = '.version.json';

@@ -5,7 +5,7 @@ import { InstallOptions } from './main';
 import { importRulesetData } from "./rulesetInstaller";
 
 async function activateCopiedPlugins(app: App) {
-  const filePath = normalizePath(".obsidian/community-plugins.json");
+  const filePath = normalizePath(`${app.vault.configDir}/community-plugins.json`);
 
   try {
     const raw = await app.vault.adapter.read(filePath);
@@ -18,11 +18,9 @@ async function activateCopiedPlugins(app: App) {
     for (const pluginId of pluginsToEnable) {
       if (!loaded.enabledPlugins.has(pluginId)) {
         await loaded.enablePluginAndSave(pluginId);
-        console.log(`Activated plugin: ${pluginId}`);
       }
     }
 
-    new Notice("Toolkit plugins enabled. Some may need a reload.");
   } catch (e) {
     console.warn("Failed to enable toolkit plugins:", e);
   }
@@ -44,7 +42,7 @@ export class ConfirmFreshInstallModal extends Modal {
     this.titleEl.setText("⚠️ Warning: Fresh Vault Recommended");
 
     // Disclaimer text
-    this.contentEl
+    const warningEl = this.contentEl
       .createEl('div', {
         text:
           "The full VVunderlore install is intended for a fresh, empty Obsidian vault. " +
@@ -53,19 +51,11 @@ export class ConfirmFreshInstallModal extends Modal {
           "Also things could just get messy.\n\n" +
           "Make a perception check and proceed with caution!",
       })
-      .style.cssText = `
-        white-space: pre-wrap;
-        margin-bottom: 1em;
-        line-height: 1.4em;
-      `;
+      warningEl.addClass("installconf-disclaimer");
 
     // Button row container
     const buttonRow = this.contentEl.createEl('div');
-    buttonRow.style.cssText = `
-      display: flex;
-      justify-content: flex-end;
-      gap: 0.5em;
-    `;
+    buttonRow.addClass("installconf-buttonrow");
 
     // "Oh god, cancel!" button
     new ButtonComponent(buttonRow)
@@ -83,15 +73,11 @@ new ButtonComponent(buttonRow)
     // 1) Show an in-modal Installing state (instead of a toast)
     this.contentEl.empty();
     this.titleEl.setText("⏳ Installing Toolkit…");
-    this.contentEl
+    const statusMsg = this.contentEl
       .createEl("div", {
         text: "Please hang tight—this may take a moment.",
       })
-      .style.cssText = `
-        text-align: center;
-        margin-top: 1em;
-        line-height: 1.4em;
-      `;
+      statusMsg.addClass("installingnote");
 
     // 2) Run your installer + compendium import
     const compendium = this.plugin.settings.rulesetCompendium;
@@ -116,14 +102,11 @@ new ButtonComponent(buttonRow)
     // 4) Swap to success screen
     this.contentEl.empty();
     this.titleEl.setText("✅ Toolkit Installed");
-    this.contentEl
+    const successMsg = this.contentEl
       .createEl("div", {
         text: "Reloading vault in 3 seconds…",
       })
-      .style.cssText = `
-        text-align: center;
-        margin-top: 1em;
-      `;
+      successMsg.addClass("installsuccess");
 
     // 5) Finally reload
     setTimeout(() => {

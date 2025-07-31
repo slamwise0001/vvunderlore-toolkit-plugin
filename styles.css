@@ -181,3 +181,386 @@
   min-width: 200px;
   max-width: 300px;
 }
+
+.installmodal-txt {
+  font-style: italic; 
+  color: var(--text-muted); 
+  text-align: center; 
+  padding: 1em;
+}
+
+.forceupdate-flexcolumn {
+  flex-grow: 1;
+  flex-direction: column;
+  display: flex;
+}
+
+.forceupdate-note {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.forceupdate-note-b {
+  font-size: 13px;
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.forceupdate-note-c {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.vv-rotated {
+  transform: rotate(180deg);
+  transition: transform 0.2s ease;
+}
+
+.denylist {
+  padding-left: 1em;
+}
+
+.forceupdate-labelwrapper {
+  text-decoration: line-through;
+}
+
+/*-------customInstallModal--------------*/
+/*---------------------------------------*/
+
+/* ─── Utility Layout Classes ───────────────────────────── */
+
+.vv-flex-row {
+  display: flex;
+  flex-direction: row;
+}
+
+.vv-flex-column {
+  display: flex;
+  flex-direction: column;
+}
+
+.vv-align-center {
+  align-items: center;
+}
+
+.vv-justify-between {
+  justify-content: space-between;
+}
+
+.vv-grow {
+  flex-grow: 1;
+}
+
+.vv-gap-sm {
+  gap: 0.5em;
+}
+
+.vv-gap-md {
+  gap: 1em;
+}
+
+/* ─── Utility Spacing ───────────────────────────────────── */
+
+.vv-mb-sm {
+  margin-bottom: 0.5em;
+}
+
+.vv-mb-md {
+  margin-bottom: 0.75em;
+}
+
+.vv-mb-lg {
+  margin-bottom: 1.25em;
+}
+
+.vv-mx-sm {
+  margin-left: 0.5em;
+  margin-right: 0.5em;
+}
+
+.vv-mt-sm {
+  margin-top: 0.5em;
+}
+
+.vv-p-sm {
+  padding: 0.5em;
+}
+
+.vv-p-md {
+  padding: 1em;
+}
+
+.vv-pl-md {
+  padding-left: 1em;
+}
+
+.vv-checkbox-m {
+  margin-right: 0.5em;
+}
+
+/* ─── Visual Styling ───────────────────────────────────── */
+
+.vv-divider {
+  border-top: 1px solid var(--divider-color);
+  margin: 0.5em 0;
+}
+
+.vv-checkbox-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5em;
+}
+
+.vv-checkbox-row-b {
+  display: flex;
+  align-items: center;
+}
+
+.vv-folderdetails {
+  margin: 4px 0;
+}
+
+.vv-placeholder-note {
+  font-style: italic;
+  opacity: 0.4;
+  margin-bottom: 4px;
+}
+
+.vv-bold {
+  font-weight: bold;
+}
+
+.vv-centertext {
+  text-align: center;
+}
+
+.vv-italic {
+  font-style: italic;
+}
+
+.vv-muted {
+  color: var(--text-muted);
+}
+
+.vv-small {
+  font-size: 0.85em;
+}
+
+.vv-success {
+  color: var(--text-success);
+}
+
+.vv--error {
+  color: var(text-error);
+}
+
+/* ─── Console Box ───────────────────────────────────────── */
+
+.vv-console {
+  height: 140px;
+  margin: 0.5em 0;
+  padding: 8px;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--divider-color);
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.82em;
+  line-height: 1.4em;
+  color: var(--text-normal);
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+/* ─── Icon Transforms ───────────────────────────────────── */
+
+.vv-icon-rotatable {
+  transition: transform 0.2s ease;
+}
+
+.vv-rotated {
+  transform: rotate(180deg);
+  transition: transform 0.2s ease;
+}
+
+/* ─── Buttons ───────────────────────────────────────────── */
+
+.vv-btn-warning {
+  color: #FF0000;
+}
+
+
+.custominstall-headtxt {
+  font-size: 0.9em;
+  color: var(--text-muted);
+  margin-top: 0.25em;
+  margin-bottom: 0.75em;
+}
+
+.vv-mouseenter-txt {
+  background-color: var(--background-modifier-hover);
+}
+
+.vv-mouseleave-text {
+  background-color: transparent;
+}
+
+.custominstall-folder-checkbox {
+  margin-right: 0.5em;
+  cursor: pointer;
+}
+
+.custominstall-folder-icon {
+  margin-right: 0.3em;
+  transform: scale(0.9);
+  opacity: 0.75;
+}
+
+.custominstall-folder-label {
+  font-weight: 600;
+  font-size: 0.95em;
+}
+
+.vv-childrenindent {
+  margin-top: 4px;
+}
+
+.custominstall-file-label {
+  font-size: 0.9em;
+}
+
+.custominstall-resetsel {
+  font-size: 0.9em;
+  color: var(--text-normal);
+}
+
+.custominstall-consolefade-a {
+  opacity: 1.0;
+}
+
+.custominstall-consolefade-b {
+  opacity: 1.0;
+}
+
+.installconf-disclaimer {
+  white-space: pre-wrap;
+  margin-bottom: 1em;
+  line-height: 1.4em;
+}
+
+.installconf-buttonrow {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5em;
+}
+
+.inallingnote {
+  text-align: center;
+  margin-top: 1em;
+  line-height: 1.4em;
+}
+
+.installsuccess {
+  text-align: center;
+  margin-top: 1em;
+}
+
+/*--------SETTINGS PANEL---------*/
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--divider-color);
+  margin-bottom: 2em;
+  padding-bottom: 0.5em;
+}
+
+.settings-header-btn {
+  display: flex;
+  gap: 0.5em;
+}
+
+.settings-kofi {
+  background-color: #ff5900;
+  color: white;
+}
+
+.install-rulesheader {
+  font-weight: bold;
+}
+
+.settings-versionrow {
+  margin-bottom: 1em;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 2em;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--divider-color);
+}
+
+.settings-versioninfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+}
+
+.settings-versioncontrols {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5em;
+}
+
+.settings-buttonrow {
+  display: flex;
+  gap: 0.5em;
+}
+
+.settings-lastchecked {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.dropdownwidth {
+  min-width: 220px;
+}
+
+.settings-emptymsg {
+  text-align: center;
+  opacity: 0.6;
+  padding: 0.5em;
+}
+
+.settings-filetable {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-left: 4em;
+  gap: 1em;
+  font-weight: bold;
+}
+
+.settings-removelink {
+  font-size: 0.8em;
+  color: var(--text-faint);
+  text-decoration: underline;
+  margin-left: 0.25em;
+}
+
+.settings-remapcontrol {
+  flex-wrap: wrap;
+  margin-top: 0.5em;
+}
+
+.vv-no-border-top {
+  border-top: none;
+}
+
+.vv-success {
+  color: var(--text-success);
+}
+
+.vv-error {
+  color: var(--text-error);
+}

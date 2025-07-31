@@ -28,4 +28,4 @@ See below for a short demo.
 ### License
 [GPL-3.0](https://choosealicense.com/licenses/gpl-3.0/)
 
-*Built by me, [son_of_pizza](https://github.com/slamwise0001) (@son_of_pizza on tiktok)*
+*Built by me, [Slamwise](https://github.com/slamwise0001) (@son_of_pizza on tiktok)*

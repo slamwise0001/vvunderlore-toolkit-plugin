@@ -1,9 +1,9 @@
-import { normalizePath, Vault } from 'obsidian';
+import { normalizePath, Vault, App, Notice } from 'obsidian';
 import { dirname, basename, join } from 'path';
 import { promises as fs } from 'fs';
 
 export class BackupManager {
-  constructor(private vault: Vault) {}
+  constructor(private app: App) {}
 
   /**
    * Mirror every vault file (excluding .obsidian & backups) into a timestamped folder,
@@ -15,23 +15,22 @@ export class BackupManager {
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
     const tag = label ? `-${label}` : '';
     const base = normalizePath(`.vault-backups/full/${ts}${tag}`);
-    console.log(`[BackupManager] Starting mirror backup: ${base}`);
 
     await this.ensureFolderExists(base);
 
-    for (const file of this.vault.getFiles()) {
-      if (file.path.startsWith('.vault-backups/') || file.path.startsWith('.obsidian/')) {
+    for (const file of this.app.vault.getFiles()) {
+      if (file.path.startsWith('.vault-backups/') || file.path.startsWith(`${this.app.vault.configDir}/`)) {
         continue;
       }
-      const content = await this.vault.read(file);
+      const content = await this.app.vault.read(file);
       const target = normalizePath(`${base}/${file.path}`);
       await this.ensureFolderExists(dirname(target));
-      await this.vault.create(target, content);
+      await this.app.vault.create(target, content);
     }
 
-    console.log('[BackupManager] Mirror backup complete. Pruning old backups...');
+    // console.log('[BackupManager] Mirror backup complete. Pruning old backups...');
     await this.pruneFullBackups(base, maxFullBackups);
-   // console.log('[BackupManager] Pruning complete.');
+    new Notice("✅ Backup complete!");
     return base;
   }
 
@@ -51,13 +50,13 @@ export class BackupManager {
 
     // ensure the root exists
     await this.ensureFolderExists(root);
-    if (!(await this.vault.adapter.exists(root))) {
+    if (!(await this.app.vault.adapter.exists(root))) {
      // console.log('[BackupManager] pruneFullBackups: root folder not found');
       return;
     }
 
     // get folder names
-    const listing = await this.vault.adapter.list(root);
+    const listing = await this.app.vault.adapter.list(root);
     const rawFolders: string[] = Array.isArray(listing)
       ? listing as string[]
       : 'folders' in listing
@@ -71,7 +70,7 @@ export class BackupManager {
     //console.log('[BackupManager] pruneFullBackups: sorted:', sorted);
 
     // compute filesystem root to remove from
-    const adapterAny = this.vault.adapter as any;
+    const adapterAny = this.app.vault.adapter as any;
     const fsRoot = adapterAny.basePath ? join(adapterAny.basePath, root) : null;
     if (!fsRoot) {
       //console.warn('[BackupManager] pruneFullBackups: cannot determine FS root, skipping prune');
@@ -95,9 +94,9 @@ export class BackupManager {
        // console.error(`[BackupManager] pruneFullBackups: failed to remove ${removePath}`, e);
       }
       // also clean up vault index
-      const af = this.vault.getAbstractFileByPath(vaultPath);
+      const af = this.app.vault.getAbstractFileByPath(vaultPath);
       if (af) {
-        await this.vault.delete(af);
+        await this.app.fileManager.trashFile(af);
       }
     }
   }
@@ -106,11 +105,11 @@ export class BackupManager {
    * Recursively ensures that a directory exists in the vault.
    */
   private async ensureFolderExists(folderPath: string) {
-    if (!folderPath || (await this.vault.adapter.exists(folderPath))) {
+    if (!folderPath || (await this.app.vault.adapter.exists(folderPath))) {
       return;
     }
     const parent = dirname(folderPath);
     await this.ensureFolderExists(parent);
-    await this.vault.createFolder(folderPath);
+    await this.app.vault.createFolder(folderPath);
   }
 }

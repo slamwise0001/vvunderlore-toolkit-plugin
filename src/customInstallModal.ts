@@ -8,10 +8,9 @@ export class InstallingModal extends Modal {
   }
   onOpen() {
     this.contentEl.empty();
-    this.contentEl
+    const loadingEl = this.contentEl
       .createDiv({ text: 'Installing…', cls: 'mod-quiet' })
-      .style.cssText =
-      'font-style: italic; color: var(--text-muted); text-align: center; padding: 1em;';
+      loadingEl.addClass("vv-italic", "vv-muted", "vv-centertext", "vv-p-md");
   }
   onClose() {
     this.contentEl.empty();
@@ -103,12 +102,8 @@ export function showCustomInstallModal(
     
       const descriptionEl = this.contentEl.createDiv();
       descriptionEl.textContent = 'All checked items will be installed. Dependencies will be managed automatically.';
-      descriptionEl.style.cssText = `
-        font-size: 0.9em;
-        color: var(--text-muted);
-        margin-top: 0.25em;
-        margin-bottom: 0.75em;
-      `;
+      descriptionEl.addClass("custominstall-headtxt");
+ 
 
       //
       // ─── (A) SINGLE SCROLLABLE BOX FOR “OPTIONS + TREE” ─────────────────────
@@ -137,12 +132,11 @@ export function showCustomInstallModal(
     
       // 1) “Include Plugins”
       const pluginRow = checkboxSection.createDiv();
-      pluginRow.style.display = 'flex';
-      pluginRow.style.alignItems = 'center';
+      pluginRow.addClass("vv-checkbox-row-b");
       this.pluginCheckbox = pluginRow.createEl('input', { type: 'checkbox' }) as HTMLInputElement;
       this.pluginCheckbox.checked = true;
       this.pluginCheckbox.id = 'vvunderlore-checkbox-plugins';
-      this.pluginCheckbox.style.marginRight = '0.5em';
+      this.pluginCheckbox.addClass("vv-checkbox-m");
       pluginRow.createEl('label', {
         text: 'Community Plugins',
         attr: { for: this.pluginCheckbox.id },
@@ -150,12 +144,11 @@ export function showCustomInstallModal(
     
       // 2) “Include Demo Files”
       const demoRow = checkboxSection.createDiv();
-      demoRow.style.display = 'flex';
-      demoRow.style.alignItems = 'center';
+      demoRow.addClass("vv-checkbox-row-b");
       this.demoCheckbox = demoRow.createEl('input', { type: 'checkbox' }) as HTMLInputElement;
       this.demoCheckbox.checked = true;
       this.demoCheckbox.id = 'vvunderlore-checkbox-demo';
-      this.demoCheckbox.style.marginRight = '0.5em';
+      this.demoCheckbox.addClass("vv-checkbox-m");
       demoRow.createEl('label', {
         text: 'VVunderlore Demo Files',
         attr: { for: this.demoCheckbox.id },
@@ -163,12 +156,11 @@ export function showCustomInstallModal(
     
       // 3) “Include Vault Settings (hotkeys, etc.)”
       const settingsRow = checkboxSection.createDiv();
-      settingsRow.style.display = 'flex';
-      settingsRow.style.alignItems = 'center';
+      settingsRow.addClass("vv-checkbox-row-b");
       this.settingsCheckbox = settingsRow.createEl('input', { type: 'checkbox' }) as HTMLInputElement;
       this.settingsCheckbox.checked = true;
       this.settingsCheckbox.id = 'vvunderlore-checkbox-settings';
-      this.settingsCheckbox.style.marginRight = '0.5em';
+      this.settingsCheckbox.addClass("vv-checkbox-m");
       settingsRow.createEl('label', {
         text: 'Vault Settings (apperance, hotkeys, graph setup, etc.)',
         attr: { for: this.settingsCheckbox.id },
@@ -226,7 +218,7 @@ export function showCustomInstallModal(
             // ─── FOLDER CASE ─────────────────────────────────────
             const details = parentEl.createEl('details');
             details.open = true;
-            details.style.margin = '4px 0';
+            details.addClass("vv-folderdetaisl");
     
             const summary = details.createEl('summary');
             Object.assign(summary.style, {
@@ -239,30 +231,26 @@ export function showCustomInstallModal(
               userSelect: 'none',
             });
             summary.addEventListener('mouseenter', () => {
-              summary.style.backgroundColor = 'var(--background-modifier-hover)';
+              summary.addClass("vv-mouseenter-txt");
             });
             summary.addEventListener('mouseleave', () => {
-              summary.style.backgroundColor = 'transparent';
+              summary.addClass("vv-mouseleave-text");
             });
     
             // (1) Folder checkbox
             const cb = summary.createEl('input', { type: 'checkbox' }) as HTMLInputElement;
-            cb.style.marginRight = '0.5em';
+            cb.addClass("custominstall-folder-icon");
             cb.checked = true;
-            cb.style.cursor = 'pointer';
             this.checkboxMap[node.fullPath] = cb;
     
             // (2) Folder icon
             const iconEl = summary.createDiv({ cls: 'suggestion-icon' });
             setIcon(iconEl, 'folder');
-            iconEl.style.marginRight = '0.3em';
-            iconEl.style.transform = 'scale(0.9)';
-            iconEl.style.opacity = '0.75';
+            iconEl.addClass("custominstall-folder-icon");
     
             // (3) Folder label
             const label = summary.createEl('span', { text: node.name });
-            label.style.fontWeight = '600';
-            label.style.fontSize = '0.95em';
+            label.addClass("custominstall-folder-label");
     
             // (4) When folder‐checkbox toggles:
             cb.onchange = () => {
@@ -273,7 +261,7 @@ export function showCustomInstallModal(
     
             // (5) Recurse into children
             const childrenContainer = details.createDiv();
-            childrenContainer.style.marginTop = '4px';
+            childrenContainer.addClass("vv-childrenindent");
             for (const childName of Object.keys(node.children).sort()) {
               renderNode(node.children[childName], childrenContainer, indent + 1);
             }
@@ -291,29 +279,26 @@ export function showCustomInstallModal(
               userSelect: 'none',
             });
             row.addEventListener('mouseenter', () => {
-              row.style.backgroundColor = 'var(--background-modifier-hover)';
+              row.addClass("vv-mouseenter-txt");
             });
             row.addEventListener('mouseleave', () => {
-              row.style.backgroundColor = 'transparent';
+              row.addClass("vv-mouseleave-txt");
             });
     
             // (1) File checkbox
             const cb = row.createEl('input', { type: 'checkbox' }) as HTMLInputElement;
-            cb.style.marginRight = '0.5em';
+            cb.addClass("custominstall-folder-checkbox");
             cb.checked = true;
-            cb.style.cursor = 'pointer';
             this.checkboxMap[node.fullPath] = cb;
     
             // (2) File icon
             const iconEl = row.createDiv({ cls: 'suggestion-icon' });
             setIcon(iconEl, 'document');
-            iconEl.style.marginRight = '0.3em';
-            iconEl.style.transform = 'scale(0.8)';
-            iconEl.style.opacity = '0.5';
+            iconEl.addClass("custominstall-folder-icon");
     
             // (3) File label
             const label = row.createEl('label', { text: node.name });
-            label.style.fontSize = '0.9em';
+            label.addClass("custominstall-file-label");
     
             // (4) When file‐checkbox toggles:
             cb.onchange = () => {
@@ -382,7 +367,7 @@ export function showCustomInstallModal(
               'WARNING: The VVunderlore Toolkit will not function without all included plugins! You probably want to re-check that one.',
           });
           warningLine.addClass(WARNING_CLASS);
-          warningLine.style.color = '#FF0000';
+          warningLine.addClass("vv-btn-warning");
     
           // Scroll console to bottom
           this.consoleEl.scrollTop = this.consoleEl.scrollHeight;
@@ -429,10 +414,7 @@ export function showCustomInstallModal(
       
       // 1) “Reset Selection” on the LEFT
       const resetBtn = buttonRow.createEl('button', { text: 'Reset Selection' });
-      resetBtn.style.cssText = `
-        font-size: 0.9em;
-        color: var(--text-normal);
-      `;
+      resetBtn.addClass("custominstall-resetsel");
       resetBtn.onclick = () => {
         // 1) Gather any existing WARNING lines
         const warnings = Array.from(
@@ -491,12 +473,13 @@ export function showCustomInstallModal(
 if (this.pluginCheckbox.checked) {
   try {
     const apiUrl =
+    // Note: This is a GitHub repo path, not the local vault configDir
       'https://api.github.com/repos/slamwise0001/VVunderlore-Toolkit-Full/contents/.obsidian/plugins?ref=main';
     const resp = await fetch(apiUrl);
     if (resp.ok) {
       const pluginFiles: Array<{ name: string; type: 'file' | 'dir' }> = await resp.json();
       for (const item of pluginFiles) {
-        const localPath = `.obsidian/plugins/${item.name}`;
+        const localPath = `${this.app.vault.configDir}/plugins/${item.name}`;
         // If that plugin folder (or file) does _not_ already exist in the vault, enqueue it:
         const existsLocally = await this.app.vault.adapter.exists(localPath);
         if (!existsLocally) {
@@ -509,22 +492,21 @@ if (this.pluginCheckbox.checked) {
       }
     }
   } catch (e) {
+    // GitHub path, not a vault path — used for remote plugin folder listing
     console.error('Failed to enumerate .obsidian/plugins from GitHub:', e);
   }
 
-  // Even if community-plugins.json already exists, you might want to overwrite it,
-  // or you can also check adapter.exists(...) before pushing it. Example always overwrites:
-  toInstall.push({ path: '.obsidian/community-plugins.json', isFolder: false });
+  toInstall.push({ path: `${app.vault.configDir}/community-plugins.json`, isFolder: false });
 }
 
       
         // (v) If “Include Vault Settings” is checked → add the four JSON files under `.obsidian/`
         if (this.settingsCheckbox.checked) {
           const vaultSettingsPaths = [
-            '.obsidian/app.json',
-            '.obsidian/appearance.json',
-            '.obsidian/graph.json',
-            '.obsidian/hotkeys.json',
+            `${app.vault.configDir}/app.json`,
+            `${app.vault.configDir}/appearance.json`,
+            `${app.vault.configDir}/graph.json`,
+            `${app.vault.configDir}/hotkeys.json`,
           ];
           for (const vs of vaultSettingsPaths) {
             toInstall.push({ path: vs, isFolder: false });
@@ -692,9 +674,9 @@ if (this.pluginCheckbox.checked) {
       for (let i = 0; i < total; i++) {
         const child = this.consoleEl.children[i] as HTMLElement;
         if (this.currentBatchLines.includes(child)) {
-          child.style.opacity = '1.0';
+          child.addClass("custominstall-consolefade-a");
         } else {
-          child.style.opacity = '0.6';
+          child.addClass("custominstall-consolefade-b");
         }
       }
     }
