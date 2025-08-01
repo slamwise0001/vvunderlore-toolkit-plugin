@@ -226,61 +226,99 @@ export default class VVunderloreToolkitPlugin extends Plugin {
   
   // ─── CUSTOM INSTALL LOGIC ───────────────────────────────────────────
 
-  public async performCustomInstall(
-    toInstall: { path: string; isFolder: boolean }[]
-  ): Promise<void> {
-		
-	// optional backup //
-	const allFiles = this.app.vault.getAllLoadedFiles()
-	.filter((f): f is TFile => f instanceof TFile)
-	.map((f) => f.path);
-	const nonMarkerFiles = allFiles.filter((p) => p !== '.vvunderlore_installed');
+public async performCustomInstall(
+  toInstall: { path: string; isFolder: boolean }[]
+): Promise<void> {
+  // 0) Close any open markdown & graph panes
+  this.app.workspace.getLeavesOfType('markdown').forEach(l => l.detach());
+  this.app.workspace.getLeavesOfType('graph').forEach(l => l.detach());
 
-	if (nonMarkerFiles.length > 0 && this.settings.autoBackupBeforeUpdate) {
-	const folder = await this.backupManager.backupVaultMirror('pre-custom-install');
-	new Notice(`Backup before custom‐install created at: ${folder}`);
-	}
-    // 2) Loop over each selected path
+  // 1) Show the “Installing…” spinner
+  const installing = new InstallingModal(this.app);
+  installing.open();
+
+  try {
+    // 2) Optional backup
+    const allFiles = this.app.vault.getAllLoadedFiles()
+      .filter((f): f is TFile => f instanceof TFile)
+      .map(f => f.path)
+      .filter(p => p !== '.vvunderlore_installed');
+    if (allFiles.length && this.settings.autoBackupBeforeUpdate) {
+      const folder = await this.backupManager.backupVaultMirror('pre-custom-install');
+      new Notice(`Backup before custom‐install at: ${folder}`);
+    }
+
+    // 3) Loop over exactly the selected files/folders
     for (const entry of toInstall) {
       if (entry.isFolder) {
         if (!(await this.app.vault.adapter.exists(entry.path))) {
           await this.app.vault.createFolder(entry.path);
         }
       } else {
-        // File → find ManifestFileEntry
-        const manifestEntry = this.manifestCache.files.find(
-          (f) => f.path === entry.path
-        );
-        if (!manifestEntry) {
-          continue;
-        }
-        // Reuse your existing “updateEntryFromManifest” (force = true)
+        const manifestEntry = this.manifestCache.files.find(f => f.path === entry.path);
+        if (!manifestEntry) continue;
         await this.updateEntryFromManifest(manifestEntry, true);
       }
     }
-		// 3) Update .version.json and settings
-		await this.updateVersionFile();
-		this.settings.installedVersion =
-		this.settings.latestToolkitVersion ?? this.settings.installedVersion;
-		this.settings.lastForceUpdate = new Date().toISOString();
-		await this.saveSettings();
 
-		// 4) Create the hidden marker file
-		const markerPath = '.vvunderlore_installed';
-		if (!(await this.app.vault.adapter.exists(markerPath))) {
-		await this.app.vault.create(markerPath, '');
-		}
+    // 4) Bump version.json + settings
+    await this.updateVersionFile();
+    this.settings.installedVersion = this.settings.latestToolkitVersion!;
+    this.settings.lastForceUpdate = new Date().toISOString();
+    await this.saveSettings();
 
-		// 5) Re‐enable highlighting (always turn it back on)
-		this.settings.highlightEnabled = true;
-		await this.saveSettings();
-		this.enableHighlight();
-		await this.updateVersionFile();
-		if (this.settingsTab) {
-		  this.settingsTab.display();
-		}
-		new Notice('✅ Custom install complete …');
-	}
+    // 5) Import selected compendium + references
+    const comp = this.settings.rulesetCompendium;
+    const refs = this.settings.rulesetReference ?? [];
+    if (comp) {
+      const jobs: Promise<unknown>[] = [
+        importRulesetData({ app: this.app, editionKey: comp,   targetPath: "Compendium" }),
+        ...refs.map(refKey => {
+          const label = getRulesetDisplayName(refKey);
+          return importRulesetData({
+            app: this.app,
+            editionKey: refKey,
+            targetPath: `Resources/Rulesets/${label}`,
+          });
+        })
+      ];
+      await Promise.all(jobs);
+    }
+
+    // 6) Marker + re‐enable highlighting + repaint UI
+    const marker = '.vvunderlore_installed';
+    if (!(await this.app.vault.adapter.exists(marker))) {
+      await this.app.vault.create(marker, '');
+    }
+    this.settings.highlightEnabled = true;
+    await this.saveSettings();
+    this.enableHighlight();
+    if (this.settingsTab) this.settingsTab.display();
+
+    // 7) Success modal & reload vault
+    installing.close();
+    const success = new Modal(this.app);
+    success.onOpen = () => {
+      success.contentEl.empty();
+      success.titleEl.setText('✅ Custom Install Complete');
+      success.contentEl.createEl('div', {
+        text: 'Reloading vault in 3 seconds…',
+        cls: 'installsuccess'
+      });
+    };
+    success.open();
+    setTimeout(() => {
+      success.close();
+      location.reload();
+    }, 3000);
+
+  } catch (err) {
+    console.error('❌ performCustomInstall failed:', err);
+    installing.close();
+    new Notice('❌ Custom install failed; check console for details.');
+  }
+}
+
 
   // ─── HIGHLIGHTING (Light + Dark Mode) ──────────────────────────────
 
@@ -1929,15 +1967,15 @@ async loadSettings() {
         editionKey: compendium,
         targetPath: `Compendium`,
       }),
-  ...references.map(refKey => {
-    const displayName = getRulesetDisplayName(refKey);
-    return importRulesetData({
-      app:        this.app,
-      editionKey: refKey,
-      targetPath: `Resources/Rulesets/${displayName}`,
-        })
-      }),
-    ];
+    ...references.map(refKey => {
+      const displayName = getRulesetDisplayName(refKey);
+      return importRulesetData({
+        app:        this.app,
+        editionKey: refKey,
+        targetPath: `Resources/Rulesets/${displayName}`,
+          })
+        }),
+      ];
     // this won’t resolve until _all_ parsers have finished writing their MD files
     await Promise.all(parseJobs);
 

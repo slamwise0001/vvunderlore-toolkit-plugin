@@ -342,22 +342,22 @@ rsDropdown
 			new ConfirmFreshInstallModal(this.app, this.plugin).open()
 			);
 
-			const customBtn1 = btnRow1.createEl('button', {
-			text: 'Custom Install',
-			cls: 'mod-cta',
-			});
-			Object.assign(customBtn1.style, {
-			background: 'none',
-			border: '1px solid var(--interactive-accent)',
-			color: 'var(--text-normal)',
-			});
-			customBtn1.onClickEvent(() => showCustomInstallModal(this.app, this.plugin));
+			// const customBtn1 = btnRow1.createEl('button', {
+			// text: 'Custom Install',
+			// cls: 'mod-cta',
+			// });
+			// Object.assign(customBtn1.style, {
+			// background: 'none',
+			// border: '1px solid var(--interactive-accent)',
+			// color: 'var(--text-normal)',
+			// });
+			// customBtn1.onClickEvent(() => showCustomInstallModal(this.app, this.plugin));
 
 			// ─── Helper to enable/disable the buttons ─────────────────────
 			const updateInstallButtons = () => {
 			const hasRuleset = Boolean(this.plugin.settings.rulesetCompendium);
 			installBtn1.toggleAttribute('disabled', !hasRuleset);
-			customBtn1.toggleAttribute('disabled', !hasRuleset);
+			// customBtn1.toggleAttribute('disabled', !hasRuleset);
 			};
 
 			// 7) Initial call, in case we’re re-rendering
