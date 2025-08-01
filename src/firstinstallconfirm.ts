@@ -93,7 +93,7 @@ export class ConfirmFreshInstallModal extends Modal {
           console.error("❌ installFullToolkit() failed:", err);
         }
 
-        // 3) Persist settings (no settingsTab.display())
+        this.plugin.settings.isFirstRun = "no";
         await this.plugin.saveSettings();
 
         // 4) Swap to success screen

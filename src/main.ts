@@ -106,6 +106,7 @@ interface ToolkitSettings {
   rulesetCompendium: string;
   rulesetReference: string[];
   reparseGamesets: boolean;
+  isFirstRun: "yes" | "no" | "shown";
 }
 
 const DEFAULT_SETTINGS: ToolkitSettings = {
@@ -131,11 +132,12 @@ const DEFAULT_SETTINGS: ToolkitSettings = {
   customPaths: [],
   autoBackupBeforeUpdate: true,
   highlightEnabled: false,
-  highlightColorLight: 'rgb(107, 146, 120)',
-  highlightColorDark: 'rgb( 50,  70,  50)',
+  highlightColorLight: '#DFE7E2',
+  highlightColorDark: '#1F2943',
   rulesetCompendium: "",
   rulesetReference: [],
   reparseGamesets: true,
+  isFirstRun: "yes"
 };
 
 interface CustomPathEntry {
@@ -412,6 +414,19 @@ private async checkMarkerFile() {
   async onload() {
     await this.loadSettings();
  
+    if (this.settings.isFirstRun === "no") {
+  this.app.workspace.onLayoutReady(() => {
+    const welcome = this.app.vault.getAbstractFileByPath("Welcome.md");
+    if (welcome instanceof TFile) {
+      this.app.workspace.detachLeavesOfType("settings");
+      this.app.workspace.getLeaf(true).openFile(welcome);
+    } 
+    // Prevent it from triggering again
+    this.settings.isFirstRun = "shown";
+    this.saveSettings();
+  });
+}
+
     
     this.backupManager = new BackupManager(this.app);
 
@@ -438,11 +453,13 @@ private async checkMarkerFile() {
     this.addSettingTab(this.settingsTab);
 
     // Immediately load any cached manifest.json. If not present, we'll fetch in a moment.
-    try {
-      const content = await this.app.vault.adapter.read('manifest.json');
-      this.manifestCache = JSON.parse(content);
-    } catch (err) {
-      console.warn('Manifest not found in vault; will fetch from GitHub shortly.');
+    if (this.settings.isFirstRun !== "yes") {
+      try {
+        const content = await this.app.vault.adapter.read('manifest.json');
+        this.manifestCache = JSON.parse(content);
+      } catch (err) {
+        console.warn('Manifest not found in vault; will fetch from GitHub shortly.');
+      }
     }
     
     // If highlighting was ON before, restore it now:
@@ -484,39 +501,41 @@ private async checkMarkerFile() {
     }
 
     // Build the requiresGraph from manifest.json
-    try {
-      const raw = await this.app.vault.adapter.read('manifest.json');
-      const manifest = JSON.parse(raw) as {
-        files: Array<{ key: string; requires?: string[] }>;
-        folders: Array<{ key: string; requires?: string[] }>;
-      };
-      const entries = [...(manifest.folders || []), ...(manifest.files || [])];
-      this.requiresGraph = new Map<string, string[]>();
-      for (const e of entries) {
-        this.requiresGraph.set(e.key, e.requires ?? []);
+    if (this.settings.isFirstRun !== "yes") {
+      try {
+        const raw = await this.app.vault.adapter.read('manifest.json');
+        const manifest = JSON.parse(raw) as {
+          files: Array<{ key: string; requires?: string[] }>;
+          folders: Array<{ key: string; requires?: string[] }>;
+        };
+        const entries = [...(manifest.folders || []), ...(manifest.files || [])];
+        this.requiresGraph = new Map<string, string[]>();
+        for (const e of entries) {
+          this.requiresGraph.set(e.key, e.requires ?? []);
+        }
+      } catch (e) {
+        console.warn('Could not build requiresGraph (manifest.json missing or invalid).');
+        this.requiresGraph = new Map();
       }
-    } catch (e) {
-      console.warn('Could not build requiresGraph (manifest.json missing or invalid).');
-      this.requiresGraph = new Map();
+    } else {
+      this.requiresGraph = new Map(); // empty graph on first run
     }
-if (this.isFirstRun) {
-  this.app.workspace.onLayoutReady(() => {
-    try {
-      this.app.workspace.detachLeavesOfType("settings");
+    if (this.isFirstRun) {
+      this.app.workspace.onLayoutReady(() => {
+        try {
+          this.app.workspace.detachLeavesOfType("settings");
 
-      const welcome = this.app.vault.getAbstractFileByPath("Welcome.md");
-      if (welcome instanceof TFile) {
-        this.app.workspace.getLeaf(true).openFile(welcome);
-        console.log("✅ Welcome.md opened after install");
-      } else {
-        console.warn("⚠️ Welcome.md not found");
-      }
-    } catch (err) {
-      console.error("❌ Failed to open Welcome.md:", err);
+          const welcome = this.app.vault.getAbstractFileByPath("Welcome.md");
+          if (welcome instanceof TFile) {
+            this.app.workspace.getLeaf(true).openFile(welcome);
+
+          }
+        } catch (err) {
+          console.error("❌ Failed to open Welcome.md:", err);
+        }
+      });
     }
-  });
-}
-}
+  }
 
   onunload() {
     this.disableHighlight();
@@ -1451,14 +1470,15 @@ if (this.isFirstRun) {
 
     // 1) Read local toolkit version
     let localTK = '0.0.0';
-    try {
-      const content = await this.app.vault.adapter.read(toolkitPath);
-      const json = JSON.parse(content);
-      localTK = json.version || localTK;
-    } catch (err) {
-      console.error('❌ Failed to read local toolkit version:', err);
+      if (this.settings.isFirstRun !== "yes") {
+      try {
+        const content = await this.app.vault.adapter.read(toolkitPath);
+        const json = JSON.parse(content);
+        localTK = json.version || localTK;
+      } catch (err) {
+        console.error('❌ Failed to read local toolkit version:', err);
+      }
     }
-
     // 2) Fetch remote toolkit version & defaults
     let remoteTK = '0.0.0';
     try {

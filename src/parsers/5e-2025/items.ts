@@ -3,7 +3,7 @@
 import type { ParsedMarkdownFile } from "../../types";
 import { replace5eTags }     from "./helpers/tagReplacer";
 import { getFullSourceName } from "./helpers/sourceMap";
-import { buildFM, serializeFrontmatter, ITEM_META_DEFS } from "./helpers/frontmatter";
+import { buildFM, serializeFrontmatter, ITEM_META_DEFS, FM_FIELDS } from "./helpers/frontmatter";
 
 
 /** Helper to capitalize first letter – never crashes on non-strings */
@@ -179,6 +179,12 @@ export function parseItemsFile(json: any, editionId: string): ParsedMarkdownFile
 
 // build a Frontmatter object from the JSON
 const fm   = buildFM(it, ITEM_META_DEFS);
+
+// if the built frontmatter says this is a magical item…
+if (fm[FM_FIELDS.MAGICAL]) {
+  // …then add our Vermun flag
+  fm[FM_FIELDS.VERMUN] = false;
+}
 
 if (rawCode === "M" && it.weaponCategory) {
   // “M” → use weaponCategory (“Simple”/“Martial”)

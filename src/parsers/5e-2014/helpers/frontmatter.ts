@@ -96,6 +96,7 @@ export const FM_FIELDS = {
   TYPE:               "type",
   VARIANT:            "Variant",
   VERBAL:             "verbal",
+  VERMUN:             "vermun",
   WEAPON_PROFICIENCIES: "weapon-prof",
   WEIGHT:             "weight",
   WISDOM:             "wisdom",
@@ -628,38 +629,42 @@ export const ALL_FIELD_DEFS: FieldDef[] = [
     }
   },
   {
-  callSign: "ATTUNE_REQ",
-  jsonKey: "reqAttuneTags",
-  conv: (tags: any[] = [], _all) => {
-    const mapLetter: Record<string,string> = {
-      A: "Any", U: "Unaligned", N: "Neutral",
-      L: "Lawful", C: "Chaotic", G: "Good", E: "Evil"
-    };
-    const reqs: string[] = [];
+    callSign: "ATTUNE_REQ",
+    jsonKey: "reqAttuneTags",
+    conv: (tags: any[] = [], _all) => {
+      const mapLetter: Record<string,string> = {
+        A: "Any", U: "Unaligned", N: "Neutral",
+        L: "Lawful", C: "Chaotic", G: "Good", E: "Evil"
+      };
+      const reqs: string[] = [];
 
-    for (const tag of tags) {
-      if (tag.class && Array.isArray(tag.alignment)) {
-        const cls = cap(tag.class);
-        for (const code of tag.alignment) {
-          reqs.push(`${mapLetter[code] || code} ${cls}`);
+      for (const tag of tags) {
+        if (tag.class && Array.isArray(tag.alignment)) {
+          const cls = cap(tag.class);
+          for (const code of tag.alignment) {
+            reqs.push(`${mapLetter[code] || code} ${cls}`);
+          }
+        } else if (tag.class) {
+          reqs.push(cap(tag.class));
+        } else if (Array.isArray(tag.alignment)) {
+          for (const code of tag.alignment) {
+            reqs.push(mapLetter[code] || code);
+          }
+        } else if (tag.background) {
+          const [bg] = String(tag.background).split("|");
+          reqs.push(bg.split(" ").map(cap).join(" "));
+        } else if (tag.spellcasting) {
+          reqs.push("Spellcaster");
         }
-      } else if (tag.class) {
-        reqs.push(cap(tag.class));
-      } else if (Array.isArray(tag.alignment)) {
-        for (const code of tag.alignment) {
-          reqs.push(mapLetter[code] || code);
-        }
-      } else if (tag.background) {
-        const [bg] = String(tag.background).split("|");
-        reqs.push(bg.split(" ").map(cap).join(" "));
-      } else if (tag.spellcasting) {
-        reqs.push("Spellcaster");
       }
+      return Array.from(new Set(reqs));
     }
-
-    return Array.from(new Set(reqs));
-  }
-},
+  },
+  {
+    callSign: "VERMUN",
+    jsonKey: "wondrous",            // or whatever property you use to detect “magical”
+    conv: (_raw, all) => !!all.wondrous || !!all.reqAttune
+  },          
   // ─── Other ───
   { callSign: "DAMAGE_RES", jsonKey: "resist", conv: v => Array.isArray(v) ? v.map(cap) : [] },
   { callSign: "RULESET", jsonKey: "_editionId" },
@@ -738,6 +743,8 @@ export function buildFM(json: any, defs: FieldDef[]): Frontmatter {
   }
   return fm;
 }
+
+
 
 // frontmatter.ts
 
@@ -883,6 +890,7 @@ export const ITEM_KEYS: FMKey[] = [
   "MAGICAL",
   "ATTUNEMENT",
   "ATTUNE_REQ",
+  "VERMUN",
   "SOURCE",
   "RULESET"
 ];
