@@ -19,6 +19,7 @@ import { AVAILABLE_EDITIONS } from './editions';
 import { importRulesetData } from './rulesetInstaller';
 import { ConfirmFreshInstallModal } from './firstinstallconfirm';
 import "../styles.css";
+import { SidebarTemplatesView, SIDEBAR_VIEW_TYPE } from './sidebar/sb-templates';
 
 function getRulesetDisplayName(key: string): string {
  const ed = AVAILABLE_EDITIONS.find(e => e.id === key);
@@ -449,144 +450,115 @@ private async checkMarkerFile() {
 
   // ─── PLUGIN LIFECYCLE ─────────────────────────────────────────────────
 
-  async onload() {
-    await this.loadSettings();
- 
-    if (this.settings.isFirstRun === "no") {
-  this.app.workspace.onLayoutReady(() => {
-    const welcome = this.app.vault.getAbstractFileByPath("Welcome.md");
-    if (welcome instanceof TFile) {
-      this.app.workspace.detachLeavesOfType("settings");
-      this.app.workspace.getLeaf(true).openFile(welcome);
-    } 
-    // Prevent it from triggering again
-    this.settings.isFirstRun = "shown";
-    this.saveSettings();
-  });
-}
+async onload() {
+  await this.loadSettings();
 
-    
-    this.backupManager = new BackupManager(this.app);
+  // ─── CORE MANAGERS ───────────────────────────────────────────────────
+  this.backupManager = new BackupManager(this.app);
+  this.fileCacheManager = new ToolkitFileCacheManager(
+    this.app.vault,
+    this.settings.fileCache ?? {},
+    async () => await this.saveSettings()
+  );
 
-    this.fileCacheManager = new ToolkitFileCacheManager(
-      this.app.vault,
-      this.settings.fileCache ?? {},
-      async () => await this.saveSettings()
-    );
+  // ─── SETTINGS UI ────────────────────────────────────────────────────
+  this.settingsTab = new ToolkitSettingsTab(this.app, this);
+  this.addSettingTab(this.settingsTab);
 
-
-      const origError = console.error.bind(console);
-  console.error = (msg?: any, ...rest: any[]) => {
-    if (
-      typeof msg === "string" &&
-      msg.includes("Cannot index file") &&
-      msg.includes("Dataview")
-    ) {
+  // ─── SIDEBAR VIEW (no heavy logic here) ──────────────────────────────
+  this.registerView(SIDEBAR_VIEW_TYPE, (leaf) => new SidebarTemplatesView(leaf));
+  this.addRibbonIcon('sparkles', 'notebook-pen', () => {
+    // `true` means “create one if none exists” but TS still types it as possibly null
+    const leaf = this.app.workspace.getRightLeaf(true);
+    if (!leaf) {
+      new Notice("❌ Could not open Templates sidebar");
       return;
     }
-    origError(msg, ...rest);
-  };
+    leaf.setViewState({
+      type: SIDEBAR_VIEW_TYPE,
+      active: true,
+    });
+  });
 
-    this.settingsTab = new ToolkitSettingsTab(this.app, this);
-    this.addSettingTab(this.settingsTab);
-
-    // Immediately load any cached manifest.json. If not present, we'll fetch in a moment.
-    if (this.settings.isFirstRun !== "yes") {
-      try {
-        const content = await this.app.vault.adapter.read('manifest.json');
-        this.manifestCache = JSON.parse(content);
-      } catch (err) {
-        console.warn('Manifest not found in vault; will fetch from GitHub shortly.');
-      }
-    }
-    
-    // If highlighting was ON before, restore it now:
-	if (this.settings.highlightEnabled ) {
-		this.enableHighlight();
-	  }
-
-    // Defer heavier tasks slightly so UI isn’t blocked:
-    setTimeout(async () => {
-      await this.syncManifest();
-      await this.showIndexingModal();
-      await this.checkForUpdates();
-
-      // Build reverse cache for “moved” detection
-      this.oldPathsByGithub = Object.entries(
-        this.fileCacheManager.getCache() as Record<string, ToolkitFileCacheEntry>
-      ).reduce((map, [vaultPath, entry]) => {
-        map[entry.githubPath] = vaultPath;
-        return map;
-      }, {} as Record<string, string>);
-
-    }, 250);
-
-    this.scheduleAutoUpdateCheck();
-
-  this.registerEvent(
-    this.app.vault.on("delete", () =>
-    (this.app as any).commands.executeCommandById("dataview:clear-cache")    )
-  );
-  this.registerEvent(
-    this.app.vault.on("rename", () =>
-      (this.app as any).commands.executeCommandById("dataview:clear-cache")
-    )
-  );
-
-    // Defensive: ensure settings.customPaths exists
-    if (!this.settings.customPaths) {
-      this.settings.customPaths = [];
-    }
-
-    // Build the requiresGraph from manifest.json
-    if (this.settings.isFirstRun !== "yes") {
-      try {
-        const raw = await this.app.vault.adapter.read('manifest.json');
-        const manifest = JSON.parse(raw) as {
-          files: Array<{ key: string; requires?: string[] }>;
-          folders: Array<{ key: string; requires?: string[] }>;
-        };
-        const entries = [...(manifest.folders || []), ...(manifest.files || [])];
-        this.requiresGraph = new Map<string, string[]>();
-        for (const e of entries) {
-          this.requiresGraph.set(e.key, e.requires ?? []);
-        }
-      } catch (e) {
-        console.warn('Could not build requiresGraph (manifest.json missing or invalid).');
-        this.requiresGraph = new Map();
-      }
-    } else {
-      this.requiresGraph = new Map(); // empty graph on first run
-    }
-    if (this.isFirstRun) {
-      this.app.workspace.onLayoutReady(() => {
-        try {
-          this.app.workspace.detachLeavesOfType("settings");
-
-          const welcome = this.app.vault.getAbstractFileByPath("Welcome.md");
-          if (welcome instanceof TFile) {
-            this.app.workspace.getLeaf(true).openFile(welcome);
-
-          }
-        } catch (err) {
-          console.error("❌ Failed to open Welcome.md:", err);
-        }
-      });
-    }
+  // ─── RESTORE STATE ──────────────────────────────────────────────────
+  //  • Load cached manifest.json if present
+  if (this.settings.isFirstRun !== 'yes') {
+    try {
+      const content = await this.app.vault.adapter.read('manifest.json');
+      this.manifestCache = JSON.parse(content);
+    } catch {}
   }
+  //  • Highlight nav items if enabled
+  if (this.settings.highlightEnabled) this.enableHighlight();
 
-  onunload() {
-    this.disableHighlight();
-    if (this.autoCheckInterval) {
-      clearInterval(this.autoCheckInterval);
+  // ─── DEFER HEAVY TASKS ───────────────────────────────────────────────
+  setTimeout(async () => {
+    await this.syncManifest();
+    await this.showIndexingModal();
+    await this.checkForUpdates();
+
+    // build your requiresGraph from manifest.json
+    try {
+      const raw = await this.app.vault.adapter.read('manifest.json');
+      const manifest = JSON.parse(raw);
+      const entries = [...(manifest.folders||[]), ...(manifest.files||[])];
+      this.requiresGraph = new Map(entries.map(e => [e.key, e.requires||[]]));
+    } catch {
+      this.requiresGraph = new Map();
     }
-  } 
+  }, 250);
+
+  // ─── AUTO-UPDATE TIMER & EVENTS ─────────────────────────────────────
+  this.scheduleAutoUpdateCheck();
+  this.registerEvent(
+    this.app.vault.on('delete',  () =>
+    this.registerEvent(
+      this.app.vault.on('delete', () =>
+        (this.app as any).commands.executeCommandById('dataview:clear-cache')
+      )
+    )));
+    this.registerEvent(
+      this.app.vault.on('rename', () =>
+        (this.app as any).commands.executeCommandById('dataview:clear-cache')
+      )
+    );
+
+  // ─── FIRST-RUN “Welcome.md” ─────────────────────────────────────────
+  if (this.settings.isFirstRun === 'no') {
+    this.app.workspace.onLayoutReady(() => {
+      const welcome = this.app.vault.getAbstractFileByPath('Welcome.md');
+      if (welcome instanceof TFile) {
+        this.app.workspace.detachLeavesOfType('settings');
+        this.app.workspace.getLeaf(true).openFile(welcome);
+      }
+      // mark shown
+      this.settings.isFirstRun = 'shown';
+      this.saveSettings();
+    });
+  }
+}
+
+
+onunload() {
+  this.disableHighlight();
+  this.app.workspace.detachLeavesOfType(SIDEBAR_VIEW_TYPE);
+  if (this.autoCheckInterval) clearInterval(this.autoCheckInterval);
+}
 
   scheduleAutoUpdateCheck() {
     this.autoCheckInterval = window.setInterval(() => {
       this.checkForUpdates();
     }, 60 * 60 * 1000);
   }
+
+  public async activateTemplatesSidebar(): Promise<void> {
+  // Close any open sidebar of our view type
+  this.app.workspace.detachLeavesOfType(SIDEBAR_VIEW_TYPE);
+
+  // Open a new one on the left
+await this.app.workspace.getLeftLeaf(false)!
+  .setViewState({ type: SIDEBAR_VIEW_TYPE, active: true });
+}
 
   // ─── BACKUP & UNDO ────────────────────────────────────────────────────
 

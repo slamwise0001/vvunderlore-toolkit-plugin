@@ -567,3 +567,11 @@
 .vv-error {
   color: var(--text-error);
 }
+
+.sb-summary {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 0.3em 0;
+  margin-top: 0.5em !important;
+  cursor: pointer;
+}
