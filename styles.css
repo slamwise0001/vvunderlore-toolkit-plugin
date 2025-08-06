@@ -575,3 +575,16 @@
   margin-top: 0.5em !important;
   cursor: pointer;
 }
+
+.sb-adv-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin: 4px 0;
+}
+
+.sb-adv-links {
+  text-decoration: none;
+  padding: 2px 4px;
+  border-radius: 3px;
+}

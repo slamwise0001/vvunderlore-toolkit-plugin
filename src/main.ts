@@ -7,7 +7,8 @@ import {
   TFolder,
   TFile,
   Vault,
-  requestUrl
+  requestUrl,
+  WorkspaceLeaf
 } from 'obsidian'; 
  
 import { ToolkitSettingsTab } from './settings';
@@ -466,19 +467,27 @@ async onload() {
   this.addSettingTab(this.settingsTab);
 
   // ─── SIDEBAR VIEW (no heavy logic here) ──────────────────────────────
-  this.registerView(SIDEBAR_VIEW_TYPE, (leaf) => new SidebarTemplatesView(leaf));
-  this.addRibbonIcon('sparkles', 'notebook-pen', () => {
-    // `true` means “create one if none exists” but TS still types it as possibly null
-    const leaf = this.app.workspace.getRightLeaf(true);
-    if (!leaf) {
-      new Notice("❌ Could not open Templates sidebar");
-      return;
-    }
-    leaf.setViewState({
+this.registerView(SIDEBAR_VIEW_TYPE, (leaf) => new SidebarTemplatesView(leaf));
+
+this.addRibbonIcon('scroll-text', 'VVunderlore Tools', async () => {
+  let leaf: WorkspaceLeaf | undefined | null =
+    this.app.workspace.getLeavesOfType(SIDEBAR_VIEW_TYPE)[0];
+      if (!leaf) {
+        leaf =
+          this.app.workspace.getRightLeaf(false)   // could be null
+          ?? this.app.workspace.getRightLeaf(true); // guaranteed WorkspaceLeaf
+      }
+      if (!leaf) {
+        new Notice("❌ Could not open Templates sidebar");
+        return;
+      }
+    await leaf.setViewState({
       type: SIDEBAR_VIEW_TYPE,
       active: true,
     });
-  });
+  this.app.workspace.revealLeaf(leaf);
+});
+
 
   // ─── RESTORE STATE ──────────────────────────────────────────────────
   //  • Load cached manifest.json if present

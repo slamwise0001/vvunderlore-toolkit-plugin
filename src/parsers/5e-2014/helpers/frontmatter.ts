@@ -840,6 +840,7 @@ export const SPELL_KEYS: FMKey[] = [
   "SCHOOL",
   "CASTING_TIME",
   "SPELL_RANGE",
+  "DAMAGE_TYPE",
   "DURATION",
   "VERBAL",
   "SOMATIC",
