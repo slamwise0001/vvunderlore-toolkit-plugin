@@ -109,6 +109,7 @@ interface ToolkitSettings {
   rulesetReference: string[];
   reparseGamesets: boolean;
   isFirstRun: "yes" | "no" | "shown";
+  
 }
 
 const DEFAULT_SETTINGS: ToolkitSettings = {
