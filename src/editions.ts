@@ -14,10 +14,10 @@
 // Star Wars RPG
 
 export interface Edition {
-    id: string;              // e.g. "5e-2014"
-    label: string;           // e.g. "D&D 5E (2014)"
-    repo?: string;            // e.g. "5etools-mirror-3/5etools-2014-src"
-    parser?: string;       // your parser‐selector
+    id: string;              
+    label: string;           
+    repo?: string;            
+    parser?: string;       
     sourceUrl?: string;
     categories?: string[];
   }
@@ -40,7 +40,7 @@ export interface Edition {
     },
     {
       id: '5e-2025',
-      label: 'D&D 5e (2025)',
+      label: 'D&D 5e (2024)',
       repo: '5etools-mirror-3/5etools-src',
       parser: '5e-2025',
       sourceUrl: 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/main/data',

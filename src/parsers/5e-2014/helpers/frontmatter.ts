@@ -1,3 +1,5 @@
+//dnd 5e 2014 edition
+
 import { getFullSourceName } from "./sourceMap";
 import { formatSizeAbbrev, formatAlignmentAbbrev } from "../bestiary";
 import { formatRange, formatTime, formatDuration, SCHOOL_MAP } from "../spells";
@@ -365,7 +367,7 @@ export const ALL_FIELD_DEFS: FieldDef[] = [
     callSign: "RULESET",
     jsonKey: "name",
     // ignore the raw value, always print HELLO
-    conv: (_raw, _all) => "D&D 5e (2025)",
+    conv: (_raw, _all) => "D&D 5e (2014)",
   }, 
 
   // ─── Spells ───

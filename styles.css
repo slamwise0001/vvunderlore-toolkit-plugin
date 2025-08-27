@@ -1,4 +1,4 @@
-.suggestion-item.mod-complex {
+/* .suggestion-item.mod-complex {
   display: grid;
   grid-template-columns: 20px 1fr;
   grid-template-rows: auto auto;
@@ -38,7 +38,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
+} */
 
 .vk-section {
   margin: 0 !important;
