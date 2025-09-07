@@ -6,7 +6,8 @@ import {
   ButtonComponent,
   MarkdownView,
   Setting,
-  TFolder
+  TFolder,
+  setIcon
 } from 'obsidian';
 import { SPELLBOOK_VIEW_TYPE } from './sb-spellbook';
 
@@ -54,8 +55,8 @@ export class SidebarTemplatesView extends ItemView {
   }
 
   getViewType() { return SIDEBAR_VIEW_TYPE; }
-  getDisplayText() { return 'Adventure Materials'; }
-  getIcon() { return 'scroll-text'; }
+  getDisplayText() { return 'VVorldbuiling'; }
+  getIcon() { return 'mapmaking'; }
 
   private spellSortKey: 'name' | 'level' | 'school' | 'damage' = 'name';
   private spellSortDir:  1 | -1 = 1;
@@ -221,7 +222,7 @@ copyBtn.addEventListener('click', async e => {
       this.addBtnByPath.clear();
 
     // heading
-    this.contentEl.createEl('h4', { text: 'NOTE TEMPLATES' });
+    this.contentEl.createEl('h4', { text: 'TEMPLATES' });
 
     // template buttons
     const btnContainer = this.contentEl.createDiv();
@@ -235,14 +236,14 @@ copyBtn.addEventListener('click', async e => {
     }
     this.contentEl.createEl('hr', { attr: { style: 'margin: 12px 0;' } });
 
-    // ─── ADVENTURE LINKS ───────────────────────────────────────────────
+    //  ADVENTURE LINKS 
     const advDetails  = this.contentEl.createEl('details', { attr: { open: 'true' } });
-    const advSummary  = advDetails.createEl('summary', { text: 'ADVENTURE' });
+    const advSummary  = advDetails.createEl('summary', { text: 'ADVENTURES' });
     advSummary.setAttr('style', 'font-size: 1.3em; font-weight: 600; margin: 0.5em 0;');
     const advContainer = advDetails.createDiv({ attr: { style: 'margin:8px 0;' } });
 
     new Setting(advContainer)
-      .setName('Filter by Adventure:')
+      .setName('Filter by Adventure:') 
       .addDropdown(drop => {
         const names = Array.from(new Set(
           this.app.vault.getFiles()

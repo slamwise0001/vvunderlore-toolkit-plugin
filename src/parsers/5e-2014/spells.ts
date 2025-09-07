@@ -1,9 +1,11 @@
+//dnd 5e 2014 ed spells
+
 import type { ParsedMarkdownFile } from "src/types";
 import { replace5eTags } from "./helpers/tagReplacer";
 import { getFullSourceName } from "./helpers/sourceMap";
 import { renderMarkdownTable } from "./helpers/markdownTable";
 import { formatEntry } from "./helpers/formatEntry";
-import { buildFM, serializeFrontmatter, SPELL_META_DEFS } from "./helpers/frontmatter";
+import { buildFM, serializeFrontmatter, SPELL_META_DEFS, FM_FIELDS } from "./helpers/frontmatter";
 
 
 export const SCHOOL_MAP: Record<string, string> = {
@@ -123,9 +125,11 @@ export function parseSpellsFile(json: any, editionId: string): ParsedMarkdownFil
     const damageType = spell.damageInflict?.[0] || "Teleportation";
     const ritual = spell.ritual === true;
     const concentration = spell.duration?.some((d: any) => d.concentration) ?? false;
-
-const FM   = buildFM(spell, SPELL_META_DEFS);
-const yaml = serializeFrontmatter(FM, SPELL_META_DEFS);
+    
+    const FM   = buildFM(spell, SPELL_META_DEFS);
+    const yaml = serializeFrontmatter(FM, SPELL_META_DEFS);
+    const savingThrows = (FM[FM_FIELDS.SAVING_THROWS] as string[]) || [];
+    const saveAttr = FM[FM_FIELDS.SAVE] as string | undefined;
 
     // — title/subtitle and body layout —
     const safeName = name.replace(/\//g, "-");
@@ -142,6 +146,7 @@ const yaml = serializeFrontmatter(FM, SPELL_META_DEFS);
       `**Casting Time:** ${castingTime}`,
       `**Range:** ${range}`,
       `**Components:** ${formatComponents(spell.components)}`,
+      ...(savingThrows.length ? [`**Saving Throw:** ${savingThrows.join(", ")}`] : []),
       `**Duration:** ${duration}`,
     ];
 

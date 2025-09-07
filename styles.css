@@ -649,3 +649,5 @@
 .sb-dd__item{ display:flex; align-items:center; gap:8px; padding:6px 10px; cursor:pointer; }
 .sb-dd__item input{ margin:0; }
 .sb-dd__item:hover{ background: var(--background-modifier-hover); }
+
+.settings-rulesetrow { margin-top: 8px; }

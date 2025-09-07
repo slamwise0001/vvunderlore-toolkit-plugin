@@ -392,10 +392,53 @@ rsDropdown
 			this.display();
 			});
 		}
+
+	private formatRulesetLabel(id?: string | null): string {
+		if (!id) return "Unknown";
+		const ed = AVAILABLE_EDITIONS.find(e => e.id === id);
+		return ed ? ed.label : String(id);
+		}
+
+		private async resolveRulesetId(): Promise<string | null> {
+		// 1) settings (preferred)
+		const s = this.plugin?.settings as any;
+		const fromSettings =
+			s?.rulesetCompendium ||  // <— your installer dropdown saves here
+			s?.rulesetId ||
+			s?.ruleset ||
+			null;
+		if (fromSettings) return String(fromSettings);
+
+		// 2) optional sentinels
+		try {
+			const txt = await this.app.vault.adapter.read("Compendium/.ruleset.json");
+			const j = JSON.parse(txt);
+			return j.rulesetId || j.ruleset || null;
+		} catch (_) {}
+
+		try {
+			const txt = await this.app.vault.adapter.read(".version.json");
+			const j = JSON.parse(txt);
+			return j.rulesetId || j.ruleset || null;
+		} catch (_) {}
+
+		return null;
+		}
+
+		private async updateRulesetDisplay(): Promise<void> {
+		if (!this.rulesetValueEl) return;
+		const id = await this.resolveRulesetId();
+		const label = this.formatRulesetLabel(id);
+
+		this.rulesetValueEl.textContent = label;
+		this.rulesetValueEl.classList.remove("vv-success", "vv-warn", "vv-error");
+		this.rulesetValueEl.addClass(id ? "vv-success" : "vv-warn");
+		}
 	  
 	  
 	private versionValueEl: HTMLElement | null = null;
 	private forceWarningEl: HTMLElement | null = null;
+	private rulesetValueEl: HTMLSpanElement | null = null;
 
 	async display(): Promise<void> {
 		const { containerEl } = this;
@@ -439,6 +482,7 @@ rsDropdown
 		this.versionValueEl.textContent = installed;
 		this.versionValueEl.addClass("vv-bold", isMatch ? "vv-success" : "vv-error");
 		
+		
 		const latestRow = versionInfo.createEl('div', { text: 'Latest Official Version: ' });
 		latestRow.createSpan({
 			text: latest,
@@ -471,6 +515,16 @@ rsDropdown
 			lastChecked.addClass("settings-lastchecked");
 			lastChecked.textContent = `Last checked: ${new Date(this.plugin.settings.lastChecked).toLocaleString()}`;
 		}
+		//ruleset ident
+		const rulesetRow = versionInfo.createDiv();
+			rulesetRow.addClass("settings-rulesetrow");
+			rulesetRow.setAttr("style", "margin-top: 6px;margin-bottom: 12px;");
+
+			rulesetRow.appendText("Vault Ruleset: ");
+			this.rulesetValueEl = rulesetRow.createSpan({});
+			this.rulesetValueEl.textContent = "Detecting…";
+
+			await this.updateRulesetDisplay();
 
 		
 
@@ -1050,8 +1104,8 @@ fixBody.createEl('div', {
 
 		// 3) “Enable Highlight” toggle as a Setting inside highlightBody:
 		new Setting(highlightBody)
-		.setName('Enable File/Folder Highlighting')
-		.setDesc('Any file/folder installed by VVunderlore will have this background.')
+		.setName('Enable File Highlighting')
+		.setDesc('Any file installed by VVunderlore will have this background.')
 		.addToggle(toggle => {
 			toggle
 			.setValue(this.plugin.settings.highlightEnabled)

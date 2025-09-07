@@ -252,20 +252,73 @@ const frontmatter = `---\n${yaml}\n---`;
     const desc = it.entries ?? it.desc;
     if (desc) {
       for (const p of Array.isArray(desc) ? desc : [desc]) {
-        if (typeof p === 'string') {
-          for (const line of replace5eTags(p).split("\n")) {
-            lines.push(line);
+        if (typeof p === "string") {
+          for (const line of replace5eTags(p).split("\n")) lines.push(line);
+          lines.push("");
+        } else if (p && typeof p === "object" && p.type === "list" && Array.isArray(p.items)) {
+          if (lines[lines.length - 1] !== "") lines.push("");
+          for (const item of p.items) {
+            if (typeof item === "string") {
+              lines.push(`- ${replace5eTags(item)}`);
+              continue;
+            }
+            const head = item?.name ? `**${replace5eTags(String(item.name)).replace(/[.!?]$/, m => m).replace(/([^.!?])$/, "$1.")}**` : "";
+            let body = "";
+            if (typeof item?.entry === "string") body = replace5eTags(item.entry);
+            else if (Array.isArray(item?.entries)) body = item.entries.map((e: any) => typeof e === "string" ? replace5eTags(e) : "").join(" ");
+            const line = [head, body].filter(Boolean).join(" ").trim();
+            if (line) lines.push(`- ${line}`);
           }
           lines.push("");
-        } else if (p && typeof p === 'object') {
-          if (lines[lines.length - 1] === "") {
-            lines.pop();
+        } else if (p && typeof p === "object") {
+          if (lines[lines.length - 1] === "") lines.pop();
+          if (typeof p.name === "string" && p.name.trim()) {
+            lines.push(`#### ${p.name}`);
           }
-          lines.push(`#### ${p.name}`);
           const sub = Array.isArray(p.entries) ? p.entries : [];
           for (const sp of sub) {
-            for (const line of replace5eTags(sp).split("\n")) {
-              lines.push(line);
+            if (sp && typeof sp === "object" && sp.type === "list" && Array.isArray(sp.items)) {
+              if (lines[lines.length - 1] !== "") lines.push("");
+              for (const item of sp.items) {
+                if (typeof item === "string") {
+                  lines.push(`- ${replace5eTags(item)}`);
+                  continue;
+                }
+                const head = item?.name ? `**${replace5eTags(String(item.name)).replace(/[.!?]$/, m => m).replace(/([^.!?])$/, "$1.")}**` : "";
+                let body = "";
+                if (typeof item?.entry === "string") body = replace5eTags(item.entry);
+                else if (Array.isArray(item?.entries)) body = item.entries.map((e: any) => typeof e === "string" ? replace5eTags(e) : "").join(" ");
+                const line = [head, body].filter(Boolean).join(" ").trim();
+                if (line) lines.push(`- ${line}`);
+              }
+              lines.push("");
+              continue;
+            }
+
+            if (typeof sp === "string") {
+              for (const line of replace5eTags(sp).split("\n")) lines.push(line);
+              continue;
+            }
+
+            if (sp && typeof sp === "object" && sp.type === "entries" && sp.name) {
+              const head = `- ***${replace5eTags(sp.name)}.***`;
+              const body = (Array.isArray(sp.entries) ? sp.entries : [])
+                .map((e: any) => typeof e === "string" ? replace5eTags(e) : "")
+                .join(" ");
+              if (body.trim()) {
+                lines.push(`${head} ${body}`.trim());
+              } else {
+                lines.push(head);
+              }
+              continue;
+            }
+
+            if (sp && typeof sp === "object" && Array.isArray(sp.entries)) {
+              for (const inner of sp.entries) {
+                if (typeof inner === "string") {
+                  for (const line of replace5eTags(inner).split("\n")) lines.push(line);
+                }
+              }
             }
           }
           lines.push("");
