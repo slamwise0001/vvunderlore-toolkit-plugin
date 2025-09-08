@@ -75,6 +75,12 @@ type PlayerRow = {
     pp: number;
 };
 
+const possessive = (n: string) => {
+  const t = (n ?? "").trim();
+  if (!t) return "";
+  return /s$/i.test(t) ? `${t}'` : `${t}'s`;
+};
+
 function sanitizeSpeed(raw: string): string {
     if (!raw) return "—";
     const lower = raw.toLowerCase();
@@ -100,15 +106,28 @@ function sanitizeSpeed(raw: string): string {
 type EditListOpts = {
     title: string;
     initial: string[];
-    candidates: string[];          // e.g. ["[[Fog Cloud]]","[[Cure Wounds]]", ...]
+    candidates: string[];
     placeholder?: string;
     onSave: (values: string[]) => void | Promise<void>;
 };
 
 export class EditListModal extends Modal {
     private values: string[];
-    private candidates: string[];
     private opts: EditListOpts;
+    private ensureWikilink(s: string): string {
+        let t = (s ?? "").toString().trim();
+        if (!t) return "";
+        // if someone pasted a quoted/JSON string, unwrap it
+        try { const j = JSON.parse(t); if (typeof j === "string") t = j; } catch { }
+        // strip surrounding [] that sometimes sneak in
+        t = t.replace(/^\[+\s*|\s*\]+$/g, "");
+        // drop alias/anchor for storage; we only store the page
+        t = t.split("|")[0].split("#")[0].trim();
+        if (!t.startsWith("[[")) t = `[[${t}]]`;
+        return t;
+    }
+    private _candidates: string[];
+    private get candidates(): string[] { return this._candidates; }
 
     private inputWrap!: HTMLDivElement;
     private inputEl!: HTMLInputElement;
@@ -122,43 +141,62 @@ export class EditListModal extends Modal {
     constructor(app: App, opts: EditListOpts) {
         super(app);
         this.values = [...(opts.initial || [])];
-        this.candidates = Array.from(new Set((opts.candidates || []).map(s => this.ensureWikilink(s)))).sort();
+        this._candidates = Array.from(
+            new Set((opts.candidates || []).map(s => this.ensureWikilink(s)))
+        ).sort();
         this.opts = opts;
     }
 
 
+    // ── helpers: link parsing / labels ───────────────────────────────────
+    private labelFor(s: string): string {
+        const m = String(s).match(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/);
+        const label = (m ? (m[2] || m[1]) : s).split("/").pop()!.replace(/\.md$/, "");
+        return label.trim();
+    }
+    private parseLinkish(s: string): { path?: string; label: string } {
+        const m = String(s).match(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/);
+        return m ? { path: m[1], label: this.labelFor(s) } : { label: this.labelFor(s) };
+    }
+    private keyFor(s: string): string { return this.labelFor(s).toLowerCase(); }
+    private matchCandidateByLabel(label: string): string | null {
+        const low = label.trim().toLowerCase();
+        const hit = this.candidates.find((c) => this.labelFor(c).toLowerCase() === low);
+        return hit ?? null;
+    }
 
+    // ── modal lifecycle ──────────────────────────────────────────────────
     onOpen() {
-        const { contentEl, modalEl } = this;
+        const { contentEl } = this;
+
         this.modalEl.addClass("vv-fixed-modal");
-        this.modalEl.style.width = "520px";    // ← make it thinner here
-        this.modalEl.style.maxWidth = "96vw";  // small screens shrink gracefully
-        this.modalEl.style.maxHeight = "82vh"; // allow height
+        this.modalEl.style.width = "520px";  // thin
+        this.modalEl.style.maxWidth = "96vw";
+        this.modalEl.style.maxHeight = "92vh";
 
-        const header = contentEl.createEl("h2", { text: this.opts.title });
+        contentEl.createEl("h2", { text: this.opts.title });
 
-        // ── Search row
+        // search row
         const row = contentEl.createDiv({ cls: "vv-field-row" });
         this.inputWrap = row.createDiv({ cls: "vv-searchwrap" });
         this.inputEl = this.inputWrap.createEl("input", {
             type: "text",
             placeholder: this.opts.placeholder || "Search…",
-            cls: "vv-search",
+            cls: "prompt-input",
         });
         this.addBtn = row.createEl("button", { text: "Add", cls: "mod-cta vv-addbtn" });
-
-        // Suggest dropdown
         this.suggestWrap = this.inputWrap.createDiv({ cls: "vv-suggest", attr: { "aria-hidden": "true" } });
 
+        // list
         this.listWrap = contentEl.createDiv({ cls: "vv-list-wrap" });
         this.paintList();
 
-        // ── Actions
+        // footer
         const actions = contentEl.createDiv({ cls: "vv-actions" });
         const save = actions.createEl("button", { text: "Save", cls: "mod-cta" });
         const cancel = actions.createEl("button", { text: "Cancel", cls: "vv-cancel" });
 
-        // Listeners
+        // wiring
         const commitCurrent = () => {
             const raw = this.inputEl.value.trim();
             if (!raw) return;
@@ -170,7 +208,8 @@ export class EditListModal extends Modal {
             if (e.key === "Enter") {
                 e.preventDefault();
                 if (this.hoverIndex >= 0 && this.filtered[this.hoverIndex]) {
-                    this.addValue(this.filtered[this.hoverIndex]);
+                    // add by suggestion label
+                    this.addValue(this.labelFor(this.filtered[this.hoverIndex]));
                 } else {
                     commitCurrent();
                 }
@@ -180,13 +219,9 @@ export class EditListModal extends Modal {
             if (e.key === "Escape") { this.hideSuggestions(); }
         });
         this.addBtn.addEventListener("click", commitCurrent);
-        save.addEventListener("click", async () => {
-            await this.opts.onSave?.([...this.values]);
-            this.close();
-        });
+        save.addEventListener("click", async () => { await this.opts.onSave?.([...this.values]); this.close(); });
         cancel.addEventListener("click", () => this.close());
 
-        // initial focus
         setTimeout(() => this.inputEl.focus(), 0);
     }
 
@@ -198,28 +233,17 @@ export class EditListModal extends Modal {
         this.contentEl.empty();
     }
 
-
-    // ── UI helpers
-    private ensureWikilink(s: string): string {
-        let t = (s ?? "").toString().trim();
-        if (!t) return "";
-        // strip quotes or accidental array-ish strings
-        try { const j = JSON.parse(t); if (typeof j === "string") t = j; } catch { }
-        t = t.replace(/^\[+\s*|\s*\]+$/g, "");
-        // drop any pipes/anchors & keep basename path if you prefer
-        t = t.split("|")[0].split("#")[0].trim();
-        if (!t.startsWith("[[")) t = `[[${t}]]`;
-        return t;
-    }
-
+    // ── list ops ─────────────────────────────────────────────────────────
     private addValue(raw: string) {
-        const v = this.ensureWikilink(raw);
-        if (!v) return;
-        if (!this.values.includes(v)) {
-            this.values.push(v);
-            this.values.sort((a, b) => a.localeCompare(b));
-            this.paintList();                 // was paintPills()
-        }
+        // If the typed string matches a known candidate’s label → store its wikilink.
+        const match = this.matchCandidateByLabel(this.labelFor(raw));
+        const v = match ?? raw;
+
+        if (this.values.some(x => this.keyFor(x) === this.keyFor(v))) return;
+
+        this.values.push(v);
+        this.values.sort((a, b) => this.labelFor(a).localeCompare(this.labelFor(b)));
+        this.paintList();
         this.inputEl.value = "";
         this.hideSuggestions();
         this.inputEl.focus();
@@ -227,32 +251,31 @@ export class EditListModal extends Modal {
 
     private removeValue(v: string) {
         this.values = this.values.filter(x => x !== v);
-        this.paintList();                   // was paintPills()
+        this.paintList();
     }
 
     private paintList() {
         this.listWrap.empty();
-
         if (!this.values.length) {
-            this.listWrap.createDiv({ cls: "vv-empty", text: "Nothing added yet." });
+            this.listWrap.createDiv({ cls: "vv-list-empty", text: "Nothing added yet." });
             return;
         }
-
         const ul = this.listWrap.createEl("ul", { cls: "vv-list" });
-
         for (const v of this.values) {
             const li = ul.createEl("li", { cls: "vv-li" });
-            li.createSpan({ cls: "vv-li-text", text: v });
-            const x = li.createEl("button", {
+            const rm = li.createEl("button", {
                 cls: "vv-li-x",
                 text: "×",
                 attr: { "aria-label": `Remove ${v}` },
             });
-            x.addEventListener("click", () => this.removeValue(v));
+            rm.addEventListener("click", () => this.removeValue(v));
+
+            // Show plain text; if it is a link, Obsidian will still resolve it
+            li.createSpan({ cls: "vv-li-text", text: String(v).replace(/^\[\[|\]\]$/g, "") });
         }
     }
 
-
+    // ── suggestions ──────────────────────────────────────────────────────
     private showSuggestions(q: string) {
         const needle = q.trim().toLowerCase();
         if (!needle) return this.hideSuggestions();
@@ -264,12 +287,31 @@ export class EditListModal extends Modal {
         this.suggestWrap.empty();
         if (!this.filtered.length) return this.hideSuggestions();
 
-        this.hoverIndex = -1;
+        // --- Compute available space within the modal ---
+        const modalRect = this.modalEl.getBoundingClientRect();
+        const wrapRect = this.inputWrap.getBoundingClientRect();
+        const PAD = 12; // little breathing room from edges
+
+        const spaceBelow = Math.floor(modalRect.bottom - wrapRect.bottom - PAD);
+        const spaceAbove = Math.floor(wrapRect.top - modalRect.top - PAD);
+
+        // prefer down, but flip if below is tight and above is better
+        const dropUp = spaceBelow < 220 && spaceAbove > spaceBelow;
+
+        // cap to what’s available inside the modal; keep sane min/max
+        const available = dropUp ? spaceAbove : spaceBelow;
+        const maxH = Math.max(140, Math.min(360, available));
+
+        this.suggestWrap.classList.toggle("drop-up", dropUp);
+        this.suggestWrap.style.maxHeight = `${maxH}px`;
         this.suggestWrap.setAttr("aria-hidden", "false");
-        this.suggestWrap.toggleClass("is-open", true);
+        this.suggestWrap.addClass("is-open");
 
         this.filtered.forEach((opt, i) => {
-            const li = this.suggestWrap.createDiv({ cls: "vv-suggest-item", text: opt });
+            const li = this.suggestWrap.createDiv({
+                cls: "vv-suggest-item",
+                text: opt.replace(/^\[\[|\]\]$/g, "")
+            });
             li.addEventListener("mouseenter", () => this.setHover(i));
             li.addEventListener("mouseleave", () => this.setHover(-1));
             li.addEventListener("mousedown", (e) => { e.preventDefault(); this.addValue(opt); });
@@ -277,11 +319,13 @@ export class EditListModal extends Modal {
     }
 
     private hideSuggestions() {
-        this.suggestWrap.empty();
-        this.suggestWrap.setAttr("aria-hidden", "true");
-        this.suggestWrap.toggleClass("is-open", false);
-        this.filtered = [];
-        this.hoverIndex = -1;
+    this.suggestWrap.empty();
+    this.suggestWrap.setAttr("aria-hidden", "true");
+    this.suggestWrap.toggleClass("is-open", false);
+    this.suggestWrap.classList.remove("drop-up");
+    this.suggestWrap.style.maxHeight = "";     // ← reset
+    this.filtered = [];
+    this.hoverIndex = -1;
     }
 
     private setHover(i: number) {
@@ -295,8 +339,8 @@ export class EditListModal extends Modal {
         this.hoverIndex = (this.hoverIndex + delta + this.filtered.length) % this.filtered.length;
         this.setHover(this.hoverIndex);
     }
-
 }
+
 
 export class GameplaySidebarView extends ItemView {
     private folderRow!: HTMLDivElement;
@@ -401,32 +445,27 @@ export class GameplaySidebarView extends ItemView {
     private async showDetails(file: TFile) {
         this.detailsOpenPath = file.path;
 
-        // container
         const wrap = this.detailsWrap!;
 
-        // 1) If this file already has a PINNED card, just focus it and bail
         {
             const cards = Array.from(wrap.querySelectorAll<HTMLElement>(".vv-gp-card"));
             const pinnedForPath = cards.find(el => el.dataset.pinned === "true" && el.dataset.path === file.path);
             if (pinnedForPath) {
+                this.refreshDetailPlaceholder();
                 pinnedForPath.scrollIntoView({ block: "nearest", behavior: "smooth" });
                 return;
             }
         }
-
-        // 2) Remove any existing UNPINNED card (we only ever allow one)
         {
             const existingUnpinned = wrap.querySelector<HTMLElement>('.vv-gp-card[data-pinned="false"]');
             if (existingUnpinned) existingUnpinned.remove();
         }
 
-        // 3) Create new UNPINNED card for this file
         const card = document.createElement("div");
         card.addClass("vv-gp-card");
         card.dataset.pinned = "false";
         card.dataset.path = file.path;
 
-        // place the card directly after the last pinned (or at top if none)
         const placeCard = (c: HTMLElement) => {
             const kids = Array.from(wrap.children) as HTMLElement[];
             const cards = kids.filter(el => el.classList.contains("vv-gp-card"));
@@ -439,14 +478,13 @@ export class GameplaySidebarView extends ItemView {
                 wrap.insertBefore(c, wrap.firstChild); // newest-first at top of stack
             }
         };
-
-        // if pin state changes, re-place in the stack
         const reposition = (c: HTMLElement) => {
             if (c.parentElement === wrap) wrap.removeChild(c);
             placeCard(c);
         };
 
         placeCard(card);
+        this.refreshDetailPlaceholder();
 
         // ── controls
         const controls = card.createDiv({ cls: "vv-gp-detail-controls" });
@@ -582,7 +620,7 @@ export class GameplaySidebarView extends ItemView {
                     ["Compendium/Items", "Compendium/Magic Items"], true
                 );
                 new EditListModal(this.app, {
-                    title: "Edit Key Items",
+                    title: `${possessive(name)} Key Items`, 
                     initial: read(),
                     candidates,
                     placeholder: "Search items…",
@@ -668,7 +706,7 @@ export class GameplaySidebarView extends ItemView {
             const openSpellEditor = (initial: string[]) => {
                 const candidates = this.collectFromFolders(["Compendium/Spells", "Spells"], true);
                 new EditListModal(this.app, {
-                    title: "Edit Spells",
+                    title: `${possessive(name)} Spells`,
                     initial,
                     candidates,
                     placeholder: "Search spells…",
@@ -684,6 +722,15 @@ export class GameplaySidebarView extends ItemView {
             edit.addEventListener("click", () => openSpellEditor(get()));
 
         }
+        card.addEventListener("click", (e) => {
+            const t = e.target as HTMLElement | null;
+            const a = t?.closest("a.internal-link") as HTMLAnchorElement | null;
+            if (!a) return;
+            e.preventDefault();
+            const target = a.getAttribute("href");
+            if (!target) return;
+            this.app.workspace.openLinkText(target, file.path, true); // set to false to reuse current tab
+        });
 
     }
 
@@ -1012,6 +1059,12 @@ export class GameplaySidebarView extends ItemView {
                 await this.showDetails(r.file);
             });
 
+            // right-click: open note in new tab
+            a.addEventListener("contextmenu", (e) => {
+                e.preventDefault();
+                this.app.workspace.openLinkText(r.file.path, "", true);
+            });
+
             // pp
             tr.createEl("td", { text: String(r.pp), attr: { style: "text-align:center; white-space:nowrap;" } });
 
@@ -1065,16 +1118,24 @@ export class GameplaySidebarView extends ItemView {
 
             rmBtn.addEventListener("click", async (e) => {
                 e.preventDefault();
+
                 const plugin = getToolkit(this.app);
                 const s = plugin?.settings?.gameplay || {};
                 const list: string[] = s.selectedPlayers || [];
                 const idx = list.indexOf(r.file.path);
+
                 if (idx !== -1) {
                     list.splice(idx, 1);
                     plugin.settings.gameplay.selectedPlayers = list;
                     await plugin.saveSettings();
+
+                    // If the dropdown is open, close it to clear its document listeners
+                    const openPanel = this.containerEl.querySelector('.vv-gp-checkdd-panel.open') as any;
+                    openPanel?._close?.();
+
+                    // Repaint both views so the checkbox state + count label update
                     await this.renderTable();
-                    this.startLiveUpdates();
+                    await this.renderAddRow();
                 }
             });
 

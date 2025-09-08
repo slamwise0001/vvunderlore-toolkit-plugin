@@ -7,46 +7,46 @@ import {
   MarkdownView,
   Setting,
   TFolder,
-  setIcon 
+  setIcon
 } from 'obsidian';
 import { SPELLBOOK_VIEW_TYPE } from './sb-spellbook';
 
 export const SIDEBAR_VIEW_TYPE = 'vvunderlore-templates-sidebar';
 
 const TEMPLATE_BUTTONS: { label: string; path: string }[] = [
-  { label: 'New Adventure',        path: 'Extras/Templates/newadventure_template.md' },
-  { label: 'New PC',               path: 'Extras/Templates/playercharacter_template.md' },
-  { label: 'New NPC',              path: 'Extras/Templates/npc_template.md' },
-  { label: 'New Item',             path: 'Extras/Templates/newitem_template.md' },
-  { label: 'New Place',            path: 'Extras/Templates/newplace_template.md' },
-  { label: 'New Creature',         path: 'Extras/Templates/newcreature_template.md' },
+  { label: 'New Adventure', path: 'Extras/Templates/newadventure_template.md' },
+  { label: 'New PC', path: 'Extras/Templates/playercharacter_template.md' },
+  { label: 'New NPC', path: 'Extras/Templates/npc_template.md' },
+  { label: 'New Item', path: 'Extras/Templates/newitem_template.md' },
+  { label: 'New Place', path: 'Extras/Templates/newplace_template.md' },
+  { label: 'New Creature', path: 'Extras/Templates/newcreature_template.md' },
 ];
 
-const SCHOOL_ABBR: Record<string,string> = {
-  Abjuration:     "Abj.",
-  Conjuration:    "Conj.",
-  Divination:     "Div.",
-  Enchantment:    "Ench.",
-  Evocation:      "Envo.",
-  Illusion:       "Illu.",
-  Necromancy:     "Nec.",
-  Transmutation:  "Trans."
+const SCHOOL_ABBR: Record<string, string> = {
+  Abjuration: "Abj.",
+  Conjuration: "Conj.",
+  Divination: "Div.",
+  Enchantment: "Ench.",
+  Evocation: "Envo.",
+  Illusion: "Illu.",
+  Necromancy: "Nec.",
+  Transmutation: "Trans."
 };
 
-const DAMAGE_ABBR: Record<string,string> = {
-  acid:        "Acid",
-  cold:        "Cold",
-  fire:        "Fire",
-  force:       "Force",
-  lightning:   "Ltng.",
-  necrotic:    "Necro",
-  poison:      "Pois.",
-  psychic:     "Psyc.",
-  radiant:     "Radi.",
-  thunder:     "Thun.",
+const DAMAGE_ABBR: Record<string, string> = {
+  acid: "Acid",
+  cold: "Cold",
+  fire: "Fire",
+  force: "Force",
+  lightning: "Ltng.",
+  necrotic: "Necro",
+  poison: "Pois.",
+  psychic: "Psyc.",
+  radiant: "Radi.",
+  thunder: "Thun.",
   bludgeoning: "Bludg.",
-  piercing:    "Pierce",
-  slashing:    "Slash"
+  piercing: "Pierce",
+  slashing: "Slash"
 };
 
 export class SidebarTemplatesView extends ItemView {
@@ -59,7 +59,7 @@ export class SidebarTemplatesView extends ItemView {
   getIcon() { return 'mapmaking'; }
 
   private spellSortKey: 'name' | 'level' | 'school' | 'damage' = 'name';
-  private spellSortDir:  1 | -1 = 1;
+  private spellSortDir: 1 | -1 = 1;
 
   // ── Selected Spells (memory only; no persistence) ───────────────────
   private picks: string[] = [];
@@ -83,143 +83,144 @@ export class SidebarTemplatesView extends ItemView {
   }
 
   private renderPicks(): void {
-  const picksDiv = this.containerEl.find('#spellbook-picks') as HTMLDivElement;
-  if (!picksDiv) return;
-  picksDiv.empty();
+    const picksDiv = this.containerEl.find('#spellbook-picks') as HTMLDivElement;
+    if (!picksDiv) return;
+    picksDiv.empty();
 
-  // Outer wrapper with black border
-  const wrapper = picksDiv.createDiv();
-  wrapper.setAttr('style', [
-    'border:1.5px solid black',
-    'border-radius:6px',
-    'padding:8px',
-    'margin-top:8px',
-    'background:var(--background-secondary)'
-  ].join(';'));
+    // Outer wrapper with black border
+    const wrapper = picksDiv.createDiv();
+    wrapper.setAttr('style', [
+      'border:1.5px solid black',
+      'border-radius:6px',
+      'padding:8px',
+      'margin-top:8px',
+      'background:var(--background-secondary)'
+    ].join(';'));
 
-  const details = wrapper.createEl('details', { attr: { open: 'true' } });
+    const details = wrapper.createEl('details', { attr: { open: 'true' } });
 
-  // Header without border now
-  const summary = details.createEl('summary', { text: 'Selected Spells' });
-  summary.setAttr('style', [
-    'font-size:1.1em',
-    'font-weight:600',
-    'margin:0 0 4px',
-    'cursor:pointer',
-    'padding:4px 8px',
-    'background:var(--background-secondary)',
-    'border-radius:4px'
-  ].join(';'));
+    // Header without border now
+    const summary = details.createEl('summary', { text: 'Selected Spells' });
+    summary.setAttr('style', [
+      'font-size:1.1em',
+      'font-weight:600',
+      'margin:0 0 4px',
+      'cursor:pointer',
+      'padding:4px 8px',
+      'background:var(--background-secondary)',
+      'border-radius:4px'
+    ].join(';'));
 
-  const body = details.createDiv();
-  const grid = body.createDiv();
-  grid.setAttr('style', [
-    'display:grid',
-    'grid-template-columns:1fr',
-    'row-gap:2px',
-    'margin:8px 0',
-    'padding:0 16px' //sidepadding
-  ].join(';'));
+    const body = details.createDiv();
+    const grid = body.createDiv();
+    grid.setAttr('style', [
+      'display:grid',
+      'grid-template-columns:1fr',
+      'row-gap:2px',
+      'margin:8px 0',
+      'padding:0 16px' //sidepadding
+    ].join(';'));
 
-  if (!this.picks.length) {
-    const empty = grid.createEl('div', { text: 'No spells selected yet.' });
-    empty.setAttr('style','opacity:0.7;');
-  } else {
-    for (const path of this.picks) {
-      const file = this.app.vault.getAbstractFileByPath(path);
-      const row = grid.createDiv();
-      row.setAttr('style', [
-        'display:flex',
-        'align-items:center',
-        'justify-content:space-between',
-        'gap:8px',
-        'padding:2px 0'
-      ].join(';'));
+    if (!this.picks.length) {
+      const empty = grid.createEl('div', { text: 'No spells selected yet.' });
+      empty.setAttr('style', 'opacity:0.7;');
+    } else {
+      for (const path of this.picks) {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        const row = grid.createDiv();
+        row.setAttr('style', [
+          'display:flex',
+          'align-items:center',
+          'justify-content:space-between',
+          'gap:8px',
+          'padding:2px 0'
+        ].join(';'));
 
-      const nameLink = row.createEl('a', {
-        text: (() => {
-          if (file instanceof TFile) {
-            const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
-            return fm?.name || file.basename;
+        const nameLink = row.createEl('a', {
+          text: (() => {
+            if (file instanceof TFile) {
+              const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
+              return fm?.name || file.basename;
+            }
+            const base = path.split('/').pop() || path;
+            return base.replace(/\.md$/, '');
+          })(),
+          href: '#'
+        });
+        nameLink.setAttr('style', 'font-weight:600; text-decoration:none; color:var(--text-accent);');
+        nameLink.addEventListener('click', e => {
+          e.preventDefault();
+          this.app.workspace.openLinkText(path, '', false);
+        });
+
+        // Small "×" remove icon
+        const rmBtn = row.createEl('span', { text: '×' });
+        rmBtn.setAttr('style', 'cursor:pointer; font-size:1.2em; line-height:1;');
+        rmBtn.addEventListener('click', async e => {
+          e.preventDefault();
+          this.picks = this.picks.filter(p => p !== path);
+          const btn = this.addBtnByPath.get(path);
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = '＋';
           }
-          const base = path.split('/').pop() || path;
-          return base.replace(/\.md$/, '');
-        })(),
-        href: '#'
-      });
-      nameLink.setAttr('style', 'font-weight:600; text-decoration:none; color:var(--text-accent);');
-      nameLink.addEventListener('click', e => {
-        e.preventDefault();
-        this.app.workspace.openLinkText(path, '', false);
-      });
-
-      // Small "×" remove icon
-      const rmBtn = row.createEl('span', { text: '×' });
-      rmBtn.setAttr('style', 'cursor:pointer; font-size:1.2em; line-height:1;');
-      rmBtn.addEventListener('click', async e => {
-        e.preventDefault();
-        this.picks = this.picks.filter(p => p !== path);
-        const btn = this.addBtnByPath.get(path);
-        if (btn) {
-          btn.disabled = false;
-          btn.textContent = '＋';}
-        this.renderPicks();
-      });
+          this.renderPicks();
+        });
+      }
     }
+
+    const actions = body.createDiv();
+    actions.setAttr(
+      'style',
+      'display:flex;gap:8px;justify-content:flex-end;margin-top:4px;'
+    );
+
+    // CLEAR (secondary)
+    const clearBtn = actions.createEl('button', { text: 'Clear' });
+    // keep it visually “secondary”
+    clearBtn.setAttr('style', 'opacity:0.9;');
+    clearBtn.addEventListener('click', e => {
+      e.preventDefault();
+      // empty picks
+      this.picks = [];
+      // re‑enable all + buttons we tracked
+      this.addBtnByPath.forEach((btn) => {
+        if (!btn.isConnected) return;      // in case table re-rendered
+        btn.disabled = false;
+        btn.textContent = '＋';
+      });
+      this.renderPicks();
+    });
+
+    // COPY (primary)
+    const copyBtn = actions.createEl('button', { text: 'Copy Spellbook' });
+    copyBtn.classList.add('mod-cta');
+    // disable when nothing selected
+    copyBtn.toggleAttribute('disabled', this.picks.length === 0);
+
+    copyBtn.addEventListener('click', async e => {
+      e.preventDefault();
+      if (!this.picks.length) return;
+
+      const md = this.buildDataviewForPicks();
+      try {
+        await navigator.clipboard.writeText(md);
+        new Notice('📋 Dataview table copied to clipboard.');
+      } catch {
+        const ta = body.createEl('textarea', { text: md });
+        ta.setAttr('style', 'width:100%;height:220px;margin-top:8px;');
+        ta.select();
+        new Notice('Clipboard blocked. Dataview shown below—copy manually.');
+      }
+    });
   }
-
-  const actions = body.createDiv();
-actions.setAttr(
-  'style',
-  'display:flex;gap:8px;justify-content:flex-end;margin-top:4px;'
-);
-
-// CLEAR (secondary)
-const clearBtn = actions.createEl('button', { text: 'Clear' });
-// keep it visually “secondary”
-clearBtn.setAttr('style', 'opacity:0.9;');
-clearBtn.addEventListener('click', e => {
-  e.preventDefault();
-  // empty picks
-  this.picks = [];
-  // re‑enable all + buttons we tracked
-  this.addBtnByPath.forEach((btn) => {
-    if (!btn.isConnected) return;      // in case table re-rendered
-    btn.disabled = false;
-    btn.textContent = '＋';
-  });
-  this.renderPicks();
-});
-
-// COPY (primary)
-const copyBtn = actions.createEl('button', { text: 'Copy Spellbook' });
-copyBtn.classList.add('mod-cta');
-// disable when nothing selected
-copyBtn.toggleAttribute('disabled', this.picks.length === 0);
-
-copyBtn.addEventListener('click', async e => {
-  e.preventDefault();
-  if (!this.picks.length) return;
-
-  const md = this.buildDataviewForPicks();
-  try {
-    await navigator.clipboard.writeText(md);
-    new Notice('📋 Dataview table copied to clipboard.');
-  } catch {
-    const ta = body.createEl('textarea', { text: md });
-    ta.setAttr('style','width:100%;height:220px;margin-top:8px;');
-    ta.select();
-    new Notice('Clipboard blocked. Dataview shown below—copy manually.');
-  }
-});
-}
 
 
   async onOpen() {
     this.contentEl.empty();
 
-      this.picks = [];
-      this.addBtnByPath.clear();
+    this.picks = [];
+    this.addBtnByPath.clear();
 
     // heading
     this.contentEl.createEl('h4', { text: 'TEMPLATES' });
@@ -237,13 +238,13 @@ copyBtn.addEventListener('click', async e => {
     this.contentEl.createEl('hr', { attr: { style: 'margin: 12px 0;' } });
 
     //  ADVENTURE LINKS 
-    const advDetails  = this.contentEl.createEl('details', { attr: { open: 'true' } });
-    const advSummary  = advDetails.createEl('summary', { text: 'ADVENTURES' });
+    const advDetails = this.contentEl.createEl('details', { attr: { open: 'true' } });
+    const advSummary = advDetails.createEl('summary', { text: 'ADVENTURES' });
     advSummary.setAttr('style', 'font-size: 1.3em; font-weight: 600; margin: 0.5em 0;');
     const advContainer = advDetails.createDiv({ attr: { style: 'margin:8px 0;' } });
 
     new Setting(advContainer)
-      .setName('Filter by Adventure:') 
+      .setName('Filter by Adventure:')
       .addDropdown(drop => {
         const names = Array.from(new Set(
           this.app.vault.getFiles()
@@ -259,7 +260,7 @@ copyBtn.addEventListener('click', async e => {
           if (!adv) return;
 
           const quick = wrapper.createDiv();
-          quick.setAttr('style','display:flex;justify-content:center;gap:20px;flex-wrap:wrap;margin:6px 0 10px;');
+          quick.setAttr('style', 'display:flex;justify-content:center;gap:20px;flex-wrap:wrap;margin:6px 0 10px;');
 
           const hubExactPath = `Adventures/${adv}/${adv} - Adventure Hub.md`;
           let hubFile: TFile | null = null;
@@ -322,7 +323,7 @@ copyBtn.addEventListener('click', async e => {
     }
 
     const tpObs = this.app.plugins.getPlugin('templater-obsidian') as any;
-    const tpAlt = this.app.plugins.getPlugin('templater')          as any;
+    const tpAlt = this.app.plugins.getPlugin('templater') as any;
     const templater = tpObs || tpAlt;
     if (!templater) {
       new Notice('⚠️ Could not find Templater – is it enabled?');
@@ -338,34 +339,29 @@ copyBtn.addEventListener('click', async e => {
     const rawSel = window.getSelection()?.toString().trim() || '';
 
     if (rawSel) {
-      const base = rawSel.replace(/[\/:*?"<>|]/g, '').slice(0, 100);
+      // capture the editor + exact selection up front (but don't mutate yet)
+      const srcView = this.app.workspace.getActiveViewOfType(MarkdownView);
+      const selectedText =
+        srcView?.editor.getSelection()?.trim() || rawSel;
 
-      const mdLeaves = this.app.workspace.getLeavesOfType('markdown');
-      for (const leaf of mdLeaves) {
-        const view = leaf.view as MarkdownView;
-        const file = view.file;
-        if (!(file instanceof TFile)) continue;
-        const content = view.editor.getValue();
-        if (content.includes(rawSel)) {
-          const updated = content.replace(rawSel, `[[${base}]]`);
-          await this.app.vault.modify(file, updated);
-          break;
-        }
-      }
+      // sanitize a filename from the selection
+      const base = selectedText.replace(/[\/:*?"<>|]/g, '').slice(0, 100);
 
-      const TEMPLATE_DEST: Record<string,string> = {
-        'newadventure_template.md':    'Adventures',
+      // figure out destination as you had before
+      const TEMPLATE_DEST: Record<string, string> = {
+        'newadventure_template.md': 'Adventures',
         'playercharacter_template.md': 'World/People/Player Characters/Active',
-        'npc_template.md':             'World/People/Non-Player Characters',
-        'newitem_template.md':         'Extras/Items',
-        'newplace_template.md':        'World/Places',
-        'newcreature_template.md':     'Bestiary',
+        'npc_template.md': 'World/People/Non-Player Characters',
+        'newitem_template.md': 'Extras/Items',
+        'newplace_template.md': 'World/Places',
+        'newcreature_template.md': 'Bestiary',
       };
       const destPath = TEMPLATE_DEST[tpl['name']] || (tpl as TFile).parent!.path;
 
+      // ensure folder exists (same as before)
       let destFolderRaw = this.app.vault.getAbstractFileByPath(destPath);
       if (!(destFolderRaw instanceof TFolder)) {
-        try { await this.app.vault.createFolder(destPath); } catch {}
+        try { await this.app.vault.createFolder(destPath); } catch { }
         destFolderRaw = this.app.vault.getAbstractFileByPath(destPath);
       }
       if (!(destFolderRaw instanceof TFolder)) {
@@ -374,6 +370,7 @@ copyBtn.addEventListener('click', async e => {
       }
       const destFolder = destFolderRaw as TFolder;
 
+      // run the template to create the new note
       let newFile: TFile;
       try {
         newFile = await tpObj.file.create_new(
@@ -388,22 +385,31 @@ copyBtn.addEventListener('click', async e => {
         return;
       }
 
-      const parentPath = destFolder.parent?.path;
-      if (parentPath) {
-        const strayPath = `${parentPath}/${destFolder.name}.md`;
-        const stray = this.app.vault.getAbstractFileByPath(strayPath);
-        if (stray instanceof TFile) {
-          try {
-            const contents = await this.app.vault.read(stray);
-            await this.app.vault.modify(newFile, contents);
-            await this.app.vault.delete(stray);
-          } catch (err) {
-            console.warn('Error merging stray file:', err);
-          }
+      // (optional) your stray merge logic here…
+
+      // Check if the template was canceled and deleted the file.
+      const stillExists = this.app.vault.getAbstractFileByPath(newFile.path) instanceof TFile;
+
+      // Only now, after success, turn the original selection into a link.
+      if (stillExists && srcView && selectedText) {
+        const ed = srcView.editor;
+        const current = ed.getValue();
+        const link = `[[${base}]]`;
+
+        // Prefer replacing the exact first occurrence of the captured text
+        if (current.includes(selectedText)) {
+          const updated = current.replace(selectedText, link);
+          await this.app.vault.modify(srcView.file!, updated);
+        } else {
+          // Fallback: if selection is still active, replace it
+          ed.replaceSelection(link);
         }
       }
 
-      this.app.workspace.getLeaf(true).openFile(newFile);
+      // open the new file (only if it actually exists)
+      if (stillExists) {
+        this.app.workspace.getLeaf(true).openFile(newFile);
+      }
 
     } else {
       let wrapperFile: TFile;
@@ -452,15 +458,15 @@ copyBtn.addEventListener('click', async e => {
 
     const overrides: [RegExp, string][] = [
       [/Non-Player Characters\//, 'NPCs'],
-      [/Player Characters\//,     'Player Characters'],
-      [/Factions\//,              'Factions'],
-      [/Compendium\/Bestiary\//,  'Monsters'],
-      [/Compendium\/Items\//,     'Items'],
-      [/Compendium\/Spells\//,    'Spells'],
-      [/World\/History\//,        'History'],
-      [/World\/Events\//,         'Events'],
-      [/Deities\//,               'Deities'],
-      [/World\/Places\//,         'Places'],
+      [/Player Characters\//, 'Player Characters'],
+      [/Factions\//, 'Factions'],
+      [/Compendium\/Bestiary\//, 'Monsters'],
+      [/Compendium\/Items\//, 'Items'],
+      [/Compendium\/Spells\//, 'Spells'],
+      [/World\/History\//, 'History'],
+      [/World\/Events\//, 'Events'],
+      [/Deities\//, 'Deities'],
+      [/World\/Places\//, 'Places'],
     ];
 
     const groups: Record<string, string[]> = {};
@@ -501,7 +507,7 @@ copyBtn.addEventListener('click', async e => {
   private async showSpellbookSection(): Promise<void> {
     const sbDetails = this.contentEl.createEl('details');
     sbDetails.createEl('summary', { text: 'SPELLBOOK' })
-      .setAttr('style','font-size:1.3em;font-weight:600;margin:0.5em 0;');
+      .setAttr('style', 'font-size:1.3em;font-weight:600;margin:0.5em 0;');
     const container = sbDetails.createDiv({
       attr: { style: 'display:flex;flex-direction:column;gap:8px;margin:8px 0;' }
     });
@@ -509,15 +515,15 @@ copyBtn.addEventListener('click', async e => {
     // 1) Build Sets
     const spellFiles = this.app.vault.getMarkdownFiles()
       .filter(f => f.path.startsWith('Compendium/Spells'));
-    const levels  = new Set<number>();
-    const schools = new Set<string>(); 
+    const levels = new Set<number>();
+    const schools = new Set<string>();
     const damages = new Set<string>();
     for (const f of spellFiles) {
       const fm = this.app.metadataCache.getFileCache(f)?.frontmatter;
       if (!fm) continue;
-      if (typeof fm.level === 'number')        levels.add(fm.level);
-      if (typeof fm.school === 'string')       schools.add(fm.school);
-      if (typeof fm.damage_type === 'string')  damages.add(fm.damage_type);
+      if (typeof fm.level === 'number') levels.add(fm.level);
+      if (typeof fm.school === 'string') schools.add(fm.school);
+      if (typeof fm.damage_type === 'string') damages.add(fm.damage_type);
     }
 
     // 2) Checkbox dropdowns
@@ -569,13 +575,13 @@ copyBtn.addEventListener('click', async e => {
     };
 
 
-    const levelItems = Array.from(levels).sort((a, b) => a - b).map(lvl => ({value: `${lvl}`, label: lvl === 0 ? 'Cantrip' : `Level ${lvl}`}));
-    const schoolItems = Array.from(schools).sort().map(sch => ({ value:sch, label:sch }));
-    const damageItems = Array.from(damages).sort().map(dmg => ({ value:dmg, label:dmg }));
+    const levelItems = Array.from(levels).sort((a, b) => a - b).map(lvl => ({ value: `${lvl}`, label: lvl === 0 ? 'Cantrip' : `Level ${lvl}` }));
+    const schoolItems = Array.from(schools).sort().map(sch => ({ value: sch, label: sch }));
+    const damageItems = Array.from(damages).sort().map(dmg => ({ value: dmg, label: dmg }));
 
-    const { wrapper: lvlDD,    getSelected: getLevels   } = makeCheckboxDropdown('Levels',  levelItems);
-    const { wrapper: schoolDD, getSelected: getSchools  } = makeCheckboxDropdown('Schools', schoolItems);
-    const { wrapper: dmgDD,    getSelected: getDamages  } = makeCheckboxDropdown('Damage',  damageItems);
+    const { wrapper: lvlDD, getSelected: getLevels } = makeCheckboxDropdown('Levels', levelItems);
+    const { wrapper: schoolDD, getSelected: getSchools } = makeCheckboxDropdown('Schools', schoolItems);
+    const { wrapper: dmgDD, getSelected: getDamages } = makeCheckboxDropdown('Damage', damageItems);
 
     document.addEventListener('click', evt => {
       for (const dd of [lvlDD, schoolDD, dmgDD]) {
@@ -598,9 +604,9 @@ copyBtn.addEventListener('click', async e => {
     clearBtn.setAttr('style', 'flex:1; margin-left:8px;');
     clearBtn.addEventListener('click', () => {
       ([
-        [lvlDD,    'Levels'],
+        [lvlDD, 'Levels'],
         [schoolDD, 'Schools'],
-        [dmgDD,    'Damage'],
+        [dmgDD, 'Damage'],
       ] as const).forEach(([dd, title]) => {
         dd.querySelectorAll('input[type=checkbox]').forEach(cb => (cb as HTMLInputElement).checked = false);
         dd.querySelector('summary')?.setText(`${title} (0)`);
@@ -636,12 +642,12 @@ copyBtn.addEventListener('click', async e => {
       const fm = this.app.metadataCache.getFileCache(f)?.frontmatter;
       if (!fm) return false;
 
-      const lvl    = String(fm.level);
-      const sch    = String(fm.school);
+      const lvl = String(fm.level);
+      const sch = String(fm.school);
       const dmgRaw = typeof fm.damage_type === 'string' ? fm.damage_type : '';
 
       return (
-        (!selectedLevels.length  || selectedLevels.includes(lvl)) &&
+        (!selectedLevels.length || selectedLevels.includes(lvl)) &&
         (!selectedSchools.length || selectedSchools.includes(sch)) &&
         (!selectedDamages.length || selectedDamages.includes(dmgRaw))
       );
@@ -653,28 +659,28 @@ copyBtn.addEventListener('click', async e => {
 
       let va: any, vb: any;
       switch (this.spellSortKey) {
-        case 'level':  va = fa.level  ?? 0; break;
+        case 'level': va = fa.level ?? 0; break;
         case 'school': va = String(fa.school ?? '').toLowerCase(); break;
         case 'damage': va = String(fa.damage_type ?? '').toLowerCase(); break;
-        default:       va = String(fa.name ?? a.basename).toLowerCase();
+        default: va = String(fa.name ?? a.basename).toLowerCase();
       }
       switch (this.spellSortKey) {
-        case 'level':  vb = fb.level  ?? 0; break;
+        case 'level': vb = fb.level ?? 0; break;
         case 'school': vb = String(fb.school ?? '').toLowerCase(); break;
         case 'damage': vb = String(fb.damage_type ?? '').toLowerCase(); break;
-        default:       vb = String(fb.name ?? b.basename).toLowerCase();
+        default: vb = String(fb.name ?? b.basename).toLowerCase();
       }
 
       if (va < vb) return -1 * this.spellSortDir;
-      if (va > vb) return  1 * this.spellSortDir;
+      if (va > vb) return 1 * this.spellSortDir;
       return 0;
     });
 
     const table = tableDiv.createEl('table');
-    table.setAttr('style','width:100%;border-collapse:collapse;');
+    table.setAttr('style', 'width:100%;border-collapse:collapse;');
 
     const headerRow = table.createEl('tr');
-    headerRow.setAttr('style','display:flex;');
+    headerRow.setAttr('style', 'display:flex;');
 
     const actTh = headerRow.createEl('th');
     actTh.setAttr('style', [
@@ -683,10 +689,10 @@ copyBtn.addEventListener('click', async e => {
       'text-align:left'
     ].join(';'));
 
-    const columns: { label: string; key: 'name'|'level'|'school'|'damage'; flex: number }[] = [
-      { label: 'Name',     key: 'name',   flex: 2 },
-      { label: 'Lvl',      key: 'level',  flex: 1 },
-      { label: 'School',   key: 'school', flex: 1 },
+    const columns: { label: string; key: 'name' | 'level' | 'school' | 'damage'; flex: number }[] = [
+      { label: 'Name', key: 'name', flex: 2 },
+      { label: 'Lvl', key: 'level', flex: 1 },
+      { label: 'School', key: 'school', flex: 1 },
       { label: 'Dmg Type', key: 'damage', flex: 1 },
     ];
 
@@ -717,30 +723,30 @@ copyBtn.addEventListener('click', async e => {
     let found = 0;
     for (const f of filtered) {
       const fm = this.app.metadataCache.getFileCache(f)!.frontmatter!;
-      const lvl    = String(fm.level);
-      const sch    = String(fm.school);
+      const lvl = String(fm.level);
+      const sch = String(fm.school);
       const dmgRaw = typeof fm.damage_type === 'string' ? fm.damage_type : '';
 
       const row = table.createEl('tr');
-      row.setAttr('style','display:flex;');
+      row.setAttr('style', 'display:flex;');
 
       const actTd = row.createEl('td');
-        actTd.setAttr(
-          'style',
-          'flex:0 0 28px; padding:0; display:flex; align-items:center; justify-content:center;'
-        );
+      actTd.setAttr(
+        'style',
+        'flex:0 0 28px; padding:0; display:flex; align-items:center; justify-content:center;'
+      );
 
-        // create + button
-        const addBtn = actTd.createEl('button', { text: '＋' });
-        addBtn.addClass('sb-spelladd-btn');
+      // create + button
+      const addBtn = actTd.createEl('button', { text: '＋' });
+      addBtn.addClass('sb-spelladd-btn');
 
-        // ① remember this button for this spell path
-        this.addBtnByPath.set(f.path, addBtn);
+      // ① remember this button for this spell path
+      this.addBtnByPath.set(f.path, addBtn);
 
-        // ② if already selected, show ✓ and disable
-        if (this.picks.includes(f.path)) {
-          addBtn.textContent = '✓';
-          addBtn.disabled = true;
+      // ② if already selected, show ✓ and disable
+      if (this.picks.includes(f.path)) {
+        addBtn.textContent = '✓';
+        addBtn.disabled = true;
       }
 
       // ③ click -> add to picks, flip to ✓, disable, and re-render picks
@@ -758,8 +764,8 @@ copyBtn.addEventListener('click', async e => {
 
 
       const nameTd = row.createEl('td');
-      nameTd.setAttr('style','flex:2;padding:4px;');
-      const link = nameTd.createEl('a', { attr:{ href:'#' } });
+      nameTd.setAttr('style', 'flex:2;padding:4px;');
+      const link = nameTd.createEl('a', { attr: { href: '#' } });
       link.setText(fm.name || f.basename);
       link.addEventListener('click', e => {
         e.preventDefault();

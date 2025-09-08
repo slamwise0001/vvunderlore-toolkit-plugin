@@ -225,8 +225,8 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 		});
 		const rulesetSpan = summaryBar.createSpan({
 			text: `Ruleset: ${plugin.settings.rulesetCompendium
-					? `D&D 5E (${plugin.settings.rulesetCompendium})`
-					: ''
+				? `D&D 5E (${plugin.settings.rulesetCompendium})`
+				: ''
 				}`,
 		});
 		rulesetSpan.addClass("install-rulesheader");
@@ -642,8 +642,8 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 				marginTop: '0.25em'
 			});
 			fixTimestampRow.textContent = `Last forced: ${this.plugin.settings.lastForceUpdate
-					? new Date(this.plugin.settings.lastForceUpdate).toLocaleString()
-					: 'Not forced yet'
+				? new Date(this.plugin.settings.lastForceUpdate).toLocaleString()
+				: 'Not forced yet'
 				}`;
 
 			// ──────────────── divider ────────────────
@@ -1043,6 +1043,65 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 					style: 'border-top: 1px solid var(--divider-color); margin: 0.5em 0;'
 				}
 			});
+
+			// ───── TOOLKIT BEHAVIOR SECTION ─────────────────────────────────────────────
+			const behaviorDetails = containerEl.createEl('details', { cls: 'vk-section' });
+
+			const behaviorSummary = behaviorDetails.createEl('summary', { cls: 'vk-section-header' });
+			Object.assign(behaviorSummary.style, {
+				display: 'flex',
+				flexDirection: 'column',
+				alignItems: 'stretch',
+				padding: '0.5em 0',
+				borderBottom: '1px solid var(--divider-color)',
+				cursor: 'pointer',
+			});
+
+			const behaviorRow = behaviorSummary.createDiv({
+				attr: { style: 'display:flex; justify-content:space-between; align-items:flex-end;' }
+			});
+
+			const behaviorTitle = behaviorRow.createDiv({ attr: { style: 'display:flex; flex-direction:column;' } });
+			behaviorTitle.createEl('h5', { text: 'Toolkit Behavior' });
+			behaviorTitle.createEl('div', {
+				text: 'Fine-tune how the toolkit behaves during common workflows.',
+				cls: 'setting-item-description',
+				attr: { style: 'margin-top:0.25em;' },
+			});
+
+			const behaviorIcon = behaviorRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
+			Object.assign(behaviorIcon.style, {
+				fontWeight: 'bold',
+				display: 'inline-block',
+				transition: 'transform 0.2s ease',
+				transformOrigin: '50% 50%',
+				userSelect: 'none',
+				transform: behaviorDetails.open ? 'rotate(0deg)' : 'rotate(180deg)',
+			});
+			behaviorDetails.ontoggle = () => {
+				behaviorIcon.addClass("vv-rotated");
+			};
+
+			const behaviorBody = behaviorDetails.createDiv({ cls: 'vk-section-body' });
+			behaviorBody.addClass("vv-pl-md");
+
+			// Dropdown: Session title preference
+			new Setting(behaviorBody)
+				.setName("Session Template Naming")
+				.setDesc("When both a date and a name are entered in the New Session form, choose which one to use in the session note title. For example, 'Session 14 - Burning Down the Village' vs 'Session 14 - 4.5.63'")
+				.addDropdown((dd) => {
+					dd.addOption("name", "Session Name");
+					dd.addOption("date", "Date");
+					dd.setValue(this.plugin.settings.sessionTitlePreference ?? "name");
+					dd.onChange(async (val: "name" | "date") => {
+						this.plugin.settings.sessionTitlePreference = val;
+						await this.plugin.saveSettings();
+					});
+				});
+
+
+
+
 
 			// ───── HIGHLIGHT SECTION ───────────────────────────────────────────────────
 			const highlightDetails = containerEl.createEl('details', { cls: 'vk-section' });

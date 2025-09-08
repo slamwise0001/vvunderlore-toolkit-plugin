@@ -190,6 +190,7 @@ interface ToolkitSettings {
   rulesetReference: string[];
   reparseGamesets: boolean;
   isFirstRun: "yes" | "no" | "shown";
+  sessionTitlePreference: "name" | "date";
 
 }
 
@@ -221,7 +222,8 @@ const DEFAULT_SETTINGS: ToolkitSettings = {
   rulesetCompendium: "",
   rulesetReference: [],
   reparseGamesets: true,
-  isFirstRun: "yes"
+  isFirstRun: "yes",
+  sessionTitlePreference: "name",
 };
 
 interface CustomPathEntry {
@@ -235,7 +237,7 @@ export interface ManifestFileEntry {
   key: string;
   customOverride?: boolean;
   displayName?: string;
-  optional?: boolean; // ← mark optional files/folders if you wish
+  optional?: boolean; 
 }
 
 export interface InstallOptions {
@@ -1685,6 +1687,11 @@ export default class VVunderloreToolkitPlugin extends Plugin {
 
     // 3) merge defaults + cleaned data
     this.settings = Object.assign({}, DEFAULT_SETTINGS, cleaned);
+    if (typeof (cleaned as any).preferNameWhenBoth === "boolean") {
+      this.settings.sessionTitlePreference =
+        (cleaned as any).preferNameWhenBoth ? "name" : "date";
+      delete (this.settings as any).preferNameWhenBoth;
+    };
 
     // 4) figure out whether we’re first-run
     this.isFirstRun = !(await this.app.vault.adapter.exists('.vvunderlore_installed'));

@@ -712,28 +712,28 @@
   max-width: 220px;
 }
 
-.vv-gp-table .vv-col-pp {
-  width: 4ch;
+.vv-gp-table col.vv-col-pp {
+  width: 4.0rem;
 }
 
-.vv-gp-table .vv-col-ac {
-  width: 4ch;
+.vv-gp-table col.vv-col-ac {
+  width: 4.0rem;
 }
 
-.vv-gp-table .vv-col-hp {
-  width: 9ch;
+.vv-gp-table col.vv-col-hp {
+  width: 7.2rem;
 }
 
-.vv-gp-table .vv-col-spd {
-  width: 8ch;
+.vv-gp-table col.vv-col-spd {
+  width: 4.5rem;
 }
 
-.vv-gp-table .vv-col-aln {
-  width: 3.5ch;
+.vv-gp-table col.vv-col-aln {
+  width: 3.2rem;
 }
 
-.vv-gp-table .vv-col-rm {
-  width: 24px;
+.vv-gp-table col.vv-col-rm {
+  width: 2.0rem;
 }
 
 /* name cell clipping */
@@ -798,9 +798,26 @@
   table-layout: auto;
 }
 
+.vv-gp-table th,
+.vv-gp-table td {
+  padding: 6px 8px;
+}
+
 /* 2a) Header “Name” left-aligned, others can keep their inline centering */
 .vv-gp-table thead th:first-child {
   text-align: left;
+}
+
+.vv-gp-table td:first-child {
+  overflow: hidden;
+}
+
+.vv-gp-table td:first-child a {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /* 2b) Make the name column only as wide as its content, and prevent wrapping */
@@ -811,6 +828,32 @@
 /* let it shrink to fit */
 .vv-gp-table td:first-child a {
   white-space: nowrap;
+}
+
+.vv-gp-table td:not(:first-child),
+.vv-gp-table th:not(:first-child) {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.vv-gp-hpwrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.vv-gp-hpcur {
+  width: 3.2em;
+  text-align: center;
+}
+
+.vv-gp-hpsep {
+  opacity: .6;
+}
+
+.vv-gp-hpmax {
+  opacity: .7;
 }
 
 /* 2c) Muted separators between rows */
@@ -1179,189 +1222,141 @@
   cursor: pointer;
 }
 
-/* tiny “edit” link */
+/* Tiny “edit” link (outside the modal, used in details pane) */
 .vv-gp-edit-link {
   margin-left: 8px;
   font-size: 11px;
   color: var(--text-muted);
-  cursor: pointer
+  cursor: pointer;
 }
 
 .vv-gp-edit-link:hover {
   color: var(--text-normal);
-  text-decoration: underline
+  text-decoration: underline;
 }
 
-/* host: ONLY this dialog (thanks to .vv-modal-host class) */
-.modal.vv-modal-host {
-  --dialog-width: 600px;
-  --dialog-max-width: 92vw;
-  --dialog-max-height: 80vh;
+/* ── Scoped to the small editor modal ───────────────────────────────── */
+.modal.vv-fixed-modal {
+  min-height: 360px;
+  max-height: 92vh;
+  width: clamp(380px, 96vw, 560px);
+  max-height: 92vh;
 }
 
-.modal.vv-modal-host .modal-content {
-  padding: 0
-}
-
-/* pad vv-modal instead */
-
-/* content */
-.modal.vv-modal-host .vv-modal {
+.modal.vv-fixed-modal .modal-content {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 10px;
   padding: 12px 16px;
-  max-width: 100%;
-  overflow-x: hidden;
-  box-sizing: border-box;
 }
 
-.modal.vv-modal-host .vv-modal,
-.modal.vv-modal-host .vv-modal * {
-  box-sizing: border-box
+/* Header tidy */
+.modal.vv-fixed-modal h2 {
+  margin: 0 0 8px;
 }
 
-.modal.vv-modal-host .vv-modal>* {
-  min-width: 0
-}
-
-/* allow shrink */
-
-/* search row */
-.modal.vv-modal-host .vv-field-row {
-  display: flex;
-  align-items: center;
+/* Search row: input fills, Add sits on right */
+.vv-field-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
   gap: 8px;
-  margin: 0
+  align-items: center;
+  margin: 0 0 8px;
 }
 
-.modal.vv-modal-host .vv-searchwrap {
+.vv-searchwrap {
   position: relative;
-  flex: 1 1 auto;
-  min-width: 0
+  min-width: 0;
 }
 
-.modal.vv-modal-host .vv-search {
-  width: 100%
+.prompt-input {
+  width: 100%;
 }
 
-/* suggestions */
-.modal.vv-modal-host .vv-suggest {
+/* Obsidian-native look */
+
+/* Suggestions dropdown (position + look). Height is capped inline in TS. */
+.vv-suggest {
   position: absolute;
-  top: calc(100% + 6px);
   left: 0;
   right: 0;
+  top: calc(100% + 6px);
   display: none;
-  max-height: 40vh;
   overflow: auto;
   padding: 6px 0;
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
   box-shadow: var(--shadow-s);
-  z-index: 2;
+  z-index: 1000;
 }
 
-.modal.vv-modal-host .vv-suggest.is-open {
-  display: block
+.vv-suggest.drop-up {
+  top: auto;
+  bottom: calc(100% + 6px);
 }
 
-.modal.vv-modal-host .vv-suggest-item {
+.vv-suggest.is-open {
+  display: block;
+}
+
+.vv-suggest-item {
   padding: 6px 10px;
-  cursor: pointer
+  cursor: pointer;
 }
 
-.modal.vv-modal-host .vv-suggest-item:hover,
-.modal.vv-modal-host .vv-suggest-item.is-hover {
-  background: var(--background-modifier-hover)
+.vv-suggest-item:hover,
+.vv-suggest-item.is-hover {
+  background: var(--background-modifier-hover);
 }
 
-/* chips */
-.modal.vv-modal-host .vv-pill-wrap {
+/* Simple list (x on the left; links can render but look like text) */
+.vv-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.vv-li {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  row-gap: 6px;
-  padding: 10px;
-  max-height: min(48vh, 420px);
-  overflow-y: auto;
-  overflow-x: hidden;
-  background: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 10px;
-}
-
-.modal.vv-modal-host .vv-empty {
-  color: var(--text-muted);
-  padding: 8px
-}
-
-.modal.vv-modal-host .vv-pill {
-  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border: 1px solid var(--background-modifier-border);
-  background: var(--background-primary);
-  border-radius: 999px;
-  font-size: 12px;
-  line-height: 1;
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 100%;
+  gap: 8px;
+  padding: 2px 0;
 }
 
-.modal.vv-modal-host .vv-pill>span {
-  min-width: 0;
+.vv-li-x {
+  all: unset;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-faint);
+}
+
+.vv-li-x:hover {
+  color: var(--text-normal);
+  transform: scale(1.05);
+}
+
+.vv-li-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.modal.vv-modal-host .vv-pill-x {
-  all: unset;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: var(--background-modifier-hover);
-  cursor: pointer;
+.vv-list-empty {
+  color: var(--text-muted);
+  padding: 4px 0;
 }
 
-.modal.vv-modal-host .vv-pill-x:hover {
-  color: var(--text-normal)
+.vv-list-wrap {
+  flex: 1;
+  overflow: auto;
 }
 
-/* footer */
-.modal.vv-modal-host .vv-actions {
-  margin-top: 10px;
+/* Footer: Save/Cancel bottom-right */
+.vv-actions {
+  margin-top: 12px;
   display: flex;
   gap: 8px;
-  justify-content: flex-start;
-}
-
-/* Only affects this dialog window */
-.modal.vv-fixed-modal .modal-content { padding: 0; }
-
-/* Inner content should never impose width */
-.modal.vv-fixed-modal .vv-modal{
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-  padding:12px 16px;
-  overflow-x:hidden;
-  max-width:100%;
-  box-sizing:border-box;
-}
-.modal.vv-fixed-modal .vv-modal *{ box-sizing:border-box; }
-.modal.vv-fixed-modal .vv-modal > *{ min-width:0; }
-
-/* Chips area scrolls vertically, never widens dialog */
-.modal.vv-fixed-modal .vv-pill-wrap{
-  display:flex; flex-wrap:wrap; gap:8px; row-gap:6px;
-  padding:10px;
-  max-height:min(48vh, 420px);
-  overflow-y:auto;
-  overflow-x:hidden;
-  background:var(--background-secondary);
-  border:1px solid var(--background-modifier-border);
-  border-radius:10px;
+  justify-content: flex-end;
 }
