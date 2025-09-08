@@ -7,7 +7,7 @@ import {
   MarkdownView,
   Setting,
   TFolder,
-  setIcon
+  setIcon 
 } from 'obsidian';
 import { SPELLBOOK_VIEW_TYPE } from './sb-spellbook';
 

@@ -127,6 +127,7 @@
   align-items: center;
   justify-content: space-between;
 }
+
 .vk-subsection-description {
   font-weight: normal;
   color: var(--text-muted);
@@ -151,6 +152,7 @@
   width: 100%;
   border-collapse: collapse;
 }
+
 .vk-table-wrapper td,
 .vk-table-wrapper th {
   padding: 4px 6px;
@@ -184,9 +186,9 @@
 }
 
 .installmodal-txt {
-  font-style: italic; 
-  color: var(--text-muted); 
-  text-align: center; 
+  font-style: italic;
+  color: var(--text-muted);
+  text-align: center;
   padding: 1em;
 }
 
@@ -614,40 +616,752 @@
   justify-content: center;
 }
 
-.sb-dd { 
-  position: relative; 
-  flex: 1; 
-  min-width: 0; 
+.sb-dd {
+  position: relative;
+  flex: 1;
+  min-width: 0;
 }
 
-.sb-dd__button{
+.sb-dd__button {
   position: relative;
-  display:flex; align-items:center; justify-content:space-between; gap:8px;
-  width:100%; height:32px; padding:0 36px 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 36px 0 10px;
   background: var(--background-primary);
   color: var(--text-normal);
-  border:1px solid var(--background-modifier-border);
-  border-radius:6px;
-  cursor:pointer; user-select:none; list-style:none; /* hide default marker */
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  /* hide default marker */
 }
-.sb-dd__button::-webkit-details-marker{ display:none; }
 
-.sb-dd__button::after{
-  content:""; position:absolute; right:10px; top:50%;
-  border:5px solid transparent; border-top-color: var(--text-muted);
+.sb-dd__button::-webkit-details-marker {
+  display: none;
+}
+
+.sb-dd__button::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  border: 5px solid transparent;
+  border-top-color: var(--text-muted);
   transform: translateY(-30%);
 }
-.sb-dd[open] .sb-dd__button::after{ transform: translateY(-30%) rotate(180deg); }
-.sb-dd__panel{
-  position:absolute; top:calc(100% + 4px); left:0; z-index:100;
-  min-width:220px; max-height:220px; overflow:auto;
-  background: var(--background-primary);
-  border:1px solid var(--background-modifier-border);
-  border-radius:6px; box-shadow: var(--shadow-s, 0 2px 8px rgba(0,0,0,.15));
+
+.sb-dd[open] .sb-dd__button::after {
+  transform: translateY(-30%) rotate(180deg);
 }
 
-.sb-dd__item{ display:flex; align-items:center; gap:8px; padding:6px 10px; cursor:pointer; }
-.sb-dd__item input{ margin:0; }
-.sb-dd__item:hover{ background: var(--background-modifier-hover); }
+.sb-dd__panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 100;
+  min-width: 220px;
+  max-height: 220px;
+  overflow: auto;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  box-shadow: var(--shadow-s, 0 2px 8px rgba(0, 0, 0, .15));
+}
 
-.settings-rulesetrow { margin-top: 8px; }
+.sb-dd__item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 2px;
+  cursor: pointer;
+}
+
+.sb-dd__item input {
+  margin: 0;
+}
+
+.sb-dd__item:hover {
+  background: var(--background-modifier-hover);
+}
+
+.settings-rulesetrow {
+  margin-top: 8px;
+}
+
+.vv-gp-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0 .25rem;
+  font-size: 0.9em;
+}
+
+.vv-gp-table th,
+.vv-gp-table td {
+  padding: 2px 4px;
+}
+
+/* column widths */
+.vv-gp-table .vv-col-name {
+  width: auto;
+  max-width: 220px;
+}
+
+.vv-gp-table .vv-col-pp {
+  width: 4ch;
+}
+
+.vv-gp-table .vv-col-ac {
+  width: 4ch;
+}
+
+.vv-gp-table .vv-col-hp {
+  width: 9ch;
+}
+
+.vv-gp-table .vv-col-spd {
+  width: 8ch;
+}
+
+.vv-gp-table .vv-col-aln {
+  width: 3.5ch;
+}
+
+.vv-gp-table .vv-col-rm {
+  width: 24px;
+}
+
+/* name cell clipping */
+.vv-gp-table td:first-child a {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* center numeric-ish cells */
+.vv-gp-table td:nth-child(2),
+.vv-gp-table td:nth-child(3),
+.vv-gp-table td:nth-child(4),
+.vv-gp-table td:nth-child(5),
+.vv-gp-table td:nth-child(6) {
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* HP cell */
+.vv-gp-hpwrap {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+}
+
+.vv-gp-hpcur {
+  width: 5ch;
+  text-align: center;
+  padding: .2rem .35rem;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  font: inherit;
+}
+
+.vv-gp-hpcur:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+  background: var(--background-secondary-alt);
+  box-shadow: 0 0 0 1px var(--interactive-accent);
+}
+
+.vv-gp-hpsep {
+  opacity: .6;
+  margin: 0 2px;
+}
+
+.vv-gp-hpmax {
+  opacity: .85;
+}
+
+.vv-gp-table td:last-child {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.vv-gp-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+/* 2a) Header “Name” left-aligned, others can keep their inline centering */
+.vv-gp-table thead th:first-child {
+  text-align: left;
+}
+
+/* 2b) Make the name column only as wide as its content, and prevent wrapping */
+.vv-gp-table col.vv-col-name {
+  width: 1%;
+}
+
+/* let it shrink to fit */
+.vv-gp-table td:first-child a {
+  white-space: nowrap;
+}
+
+/* 2c) Muted separators between rows */
+.vv-gp-table tbody tr+tr td {
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+/* 2d) Remove-box + mute the row “x” button */
+.vv-gp-rmcell {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.vv-gp-rm-btn {
+  all: unset;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-muted);
+  padding: 0 2px;
+  /* tiny click target padding without a box */
+}
+
+.vv-gp-rm-btn:hover {
+  color: var(--text-normal);
+}
+
+.vv-gp-table td:last-child button {
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  color: var(--text-muted);
+}
+
+.vv-gp-table td:last-child button:hover {
+  color: var(--text-normal);
+}
+
+.vv-gp-detailwrap {
+  margin-top: .5rem;
+  padding-top: .5rem;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.vv-gp-detail-empty {
+  opacity: .6;
+  font-style: italic;
+  text-align: center;
+}
+
+.vv-gp-detail-header {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+  text-align: center;
+  margin: .25em 0 .5em;
+}
+
+.vv-gp-detail-title {
+  font-size: 1.6em;
+  font-weight: 700;
+  margin: 0;
+}
+
+.vv-gp-detail-header h3 {
+  margin: .25rem 0;
+}
+
+.vv-gp-detail-sub {
+  opacity: .8;
+}
+
+.vv-gp-detail-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: .25rem .25rem;
+}
+
+.vv-gp-detail-table td {
+  vertical-align: top;
+}
+
+.vv-gp-detail-label {
+  font-size: .75rem;
+  opacity: .7;
+}
+
+.vv-gp-detail-value {
+  white-space: nowrap;
+}
+
+.vv-gp-detail-section {
+  margin-top: .5rem;
+}
+
+.vv-gp-detail-inline a {
+  margin-right: .25rem;
+}
+
+.vv-gp-spell-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.vv-gp-spell-table th,
+.vv-gp-spell-table td {
+  padding: 2px 4px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.vv-gp-spell-table th {
+  text-align: left;
+  opacity: .8;
+}
+
+.vv-gp-spell-table td:nth-child(n+2) {
+  white-space: nowrap;
+  text-align: center;
+}
+
+.vv-icon {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+}
+
+.vv-icon--gameplay {
+  color: var(--interactive-accent);
+}
+
+.vv-icon--map {
+  color: var(--text-muted);
+}
+
+.vv-icon--gameplay:hover {
+  color: var(--text-normal);
+}
+
+.vv-gp-summary {
+  font-size: 1.5em;
+  font-weight: 600;
+  margin: 0.5em 0;
+  cursor: pointer;
+}
+
+.vv-gp-root-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.vv-gp-detailwrap {
+  position: relative;
+  border: 2px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 12px;
+  background: var(--background-primary);
+}
+
+.vv-gp-detail-controls {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  display: flex;
+  gap: 6px;
+}
+
+.vv-gp-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+.vv-gp-btn:hover {
+  color: var(--text-normal);
+}
+
+.vv-gp-detailwrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 6px 0;
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.vv-gp-detail-empty {
+  opacity: 0.7;
+  padding: 8px 6px;
+}
+
+.vv-gp-card {
+  position: relative;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--background-primary);
+  box-shadow: var(--shadow-s);
+}
+
+.vv-gp-card[data-pinned="true"] {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.vv-gp-detail-controls {
+  display: flex;
+  gap: 8px;
+  position: absolute;
+  top: 14px;
+  right: 12px;
+}
+
+.vv-gp-card .vv-gp-detail-controls .vv-gp-btn {
+  all: unset;
+  display: inline;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1.2;
+  text-transform: lowercase;
+  color: var(--text-muted) !important;
+}
+
+.vv-gp-card .vv-gp-detail-controls .vv-gp-btn:hover {
+  color: var(--text-normal) !important;
+}
+
+.vv-gp-root-body {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.vv-gp-root-body>.vv-gp-detailwrap {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.vv-gp-detail-section {
+  margin-top: 4px;
+  padding-top: 4px;
+  padding-bottom: 6px;
+  border-top: 1px solid var(--text-normal);
+}
+
+.vv-gp-kvlist {
+  display: grid;
+  row-gap: 6px;
+  margin-bottom: 8px;
+  /* space before next section */
+}
+
+.vv-gp-kvrow {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  /* label / value */
+  column-gap: 10px;
+  align-items: center;
+  /* center vertically */
+  line-height: 1.4;
+  /* optional: tweak spacing */
+}
+
+.vv-gp-kvlabel {
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.vv-gp-kvvalue>div {
+  gap: 2px;
+}
+
+.vv-gp-addwrap {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  max-width: 90%;
+  margin: 8px auto;
+}
+
+/* trigger button */
+.vv-gp-checkdd-trigger {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  cursor: pointer;
+}
+
+.vv-gp-checkdd-trigger:hover {
+  background: var(--interactive-hover);
+}
+
+/* clear-all button */
+.vv-gp-clearall {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  cursor: pointer;
+}
+
+.vv-gp-clearall:hover {
+  filter: brightness(0.95);
+}
+
+.vv-gp-checkdd-panel {
+  position: absolute;
+  z-index: 9999;
+  display: none;
+  min-width: 220px;
+  max-width: 320px;
+  max-height: 300px;
+  overflow: auto;
+  padding: 6px;
+  border-radius: 8px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .35);
+}
+
+.vv-gp-checkdd-panel.open {
+  display: block;
+}
+
+.vv-gp-checkdd-row {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.vv-gp-checkdd-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.vv-gp-checkdd-row input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+}
+
+.vv-gp-checkdd-row label {
+  cursor: pointer;
+}
+
+/* tiny “edit” link */
+.vv-gp-edit-link {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer
+}
+
+.vv-gp-edit-link:hover {
+  color: var(--text-normal);
+  text-decoration: underline
+}
+
+/* host: ONLY this dialog (thanks to .vv-modal-host class) */
+.modal.vv-modal-host {
+  --dialog-width: 600px;
+  --dialog-max-width: 92vw;
+  --dialog-max-height: 80vh;
+}
+
+.modal.vv-modal-host .modal-content {
+  padding: 0
+}
+
+/* pad vv-modal instead */
+
+/* content */
+.modal.vv-modal-host .vv-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.modal.vv-modal-host .vv-modal,
+.modal.vv-modal-host .vv-modal * {
+  box-sizing: border-box
+}
+
+.modal.vv-modal-host .vv-modal>* {
+  min-width: 0
+}
+
+/* allow shrink */
+
+/* search row */
+.modal.vv-modal-host .vv-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0
+}
+
+.modal.vv-modal-host .vv-searchwrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0
+}
+
+.modal.vv-modal-host .vv-search {
+  width: 100%
+}
+
+/* suggestions */
+.modal.vv-modal-host .vv-suggest {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  display: none;
+  max-height: 40vh;
+  overflow: auto;
+  padding: 6px 0;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-s);
+  z-index: 2;
+}
+
+.modal.vv-modal-host .vv-suggest.is-open {
+  display: block
+}
+
+.modal.vv-modal-host .vv-suggest-item {
+  padding: 6px 10px;
+  cursor: pointer
+}
+
+.modal.vv-modal-host .vv-suggest-item:hover,
+.modal.vv-modal-host .vv-suggest-item.is-hover {
+  background: var(--background-modifier-hover)
+}
+
+/* chips */
+.modal.vv-modal-host .vv-pill-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  row-gap: 6px;
+  padding: 10px;
+  max-height: min(48vh, 420px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+}
+
+.modal.vv-modal-host .vv-empty {
+  color: var(--text-muted);
+  padding: 8px
+}
+
+.modal.vv-modal-host .vv-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.modal.vv-modal-host .vv-pill>span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal.vv-modal-host .vv-pill-x {
+  all: unset;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--background-modifier-hover);
+  cursor: pointer;
+}
+
+.modal.vv-modal-host .vv-pill-x:hover {
+  color: var(--text-normal)
+}
+
+/* footer */
+.modal.vv-modal-host .vv-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+/* Only affects this dialog window */
+.modal.vv-fixed-modal .modal-content { padding: 0; }
+
+/* Inner content should never impose width */
+.modal.vv-fixed-modal .vv-modal{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  padding:12px 16px;
+  overflow-x:hidden;
+  max-width:100%;
+  box-sizing:border-box;
+}
+.modal.vv-fixed-modal .vv-modal *{ box-sizing:border-box; }
+.modal.vv-fixed-modal .vv-modal > *{ min-width:0; }
+
+/* Chips area scrolls vertically, never widens dialog */
+.modal.vv-fixed-modal .vv-pill-wrap{
+  display:flex; flex-wrap:wrap; gap:8px; row-gap:6px;
+  padding:10px;
+  max-height:min(48vh, 420px);
+  overflow-y:auto;
+  overflow-x:hidden;
+  background:var(--background-secondary);
+  border:1px solid var(--background-modifier-border);
+  border-radius:10px;
+}
