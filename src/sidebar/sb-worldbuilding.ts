@@ -73,6 +73,7 @@ export class SidebarTemplatesView extends ItemView {
   private picks: string[] = [];
   private addBtnByPath = new Map<string, HTMLButtonElement>(); // table “Add” buttons by file path
 
+  private _ddCloser?: (ev: PointerEvent) => void;
 
   private buildDataviewForPicks(): string {
     const paths = this.picks.map(p => `"${p.replace(/"/g, '\\"')}"`).join(', ');
@@ -382,6 +383,10 @@ export class SidebarTemplatesView extends ItemView {
     this.picks = [];
     this.addBtnByPath.clear();
     this.contentEl.empty();
+    if (this._ddCloser) {
+      document.removeEventListener('pointerdown', this._ddCloser, true);
+      this._ddCloser = undefined;
+    }
   }
 
   private async runTemplate(path: string) {
@@ -612,21 +617,39 @@ export class SidebarTemplatesView extends ItemView {
       title: string,
       items: Item[]
     ): { wrapper: HTMLDetailsElement; getSelected: () => string[] } => {
-      // wrapper
       const wrapper = filters.createEl('details') as HTMLDetailsElement;
-      wrapper.classList.add('sb-dd'); // style hook
+      wrapper.classList.add('sb-dd');
 
-      // select‑like “button”
       const summary = wrapper.createEl('summary') as HTMLElement;
       summary.classList.add('sb-dd__button');
       summary.setText(`${title} (0)`);
 
-      // dropdown panel
+      // make summary behave like a real button regardless of theme quirks
+      summary.setAttr('tabindex', '0');
+      summary.setAttr('role', 'button');
+      summary.setAttr('aria-expanded', 'false');
+
+      const toggleOpen = () => {
+        wrapper.open = !wrapper.open;
+        summary.setAttr('aria-expanded', String(wrapper.open));
+      };
+
+      summary.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleOpen();
+      });
+      summary.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toggleOpen();
+        }
+      });
+
       const panel = wrapper.createEl('div');
       panel.classList.add('sb-dd__panel');
       panel.addEventListener('click', (evt: MouseEvent) => evt.stopPropagation());
 
-      // checkbox list
       const inputs: HTMLInputElement[] = [];
       for (const { value, label } of items) {
         const row = panel.createEl('label');
@@ -650,6 +673,7 @@ export class SidebarTemplatesView extends ItemView {
     };
 
 
+
     const levelItems = Array.from(levels).sort((a, b) => a - b).map(lvl => ({ value: `${lvl}`, label: lvl === 0 ? 'Cantrip' : `Level ${lvl}` }));
     const schoolItems = Array.from(schools).sort().map(sch => ({ value: sch, label: sch }));
     const damageItems = Array.from(damages).sort().map(dmg => ({ value: dmg, label: dmg }));
@@ -658,11 +682,17 @@ export class SidebarTemplatesView extends ItemView {
     const { wrapper: schoolDD, getSelected: getSchools } = makeCheckboxDropdown('Schools', schoolItems);
     const { wrapper: dmgDD, getSelected: getDamages } = makeCheckboxDropdown('Damage', damageItems);
 
-    document.addEventListener('click', evt => {
-      for (const dd of [lvlDD, schoolDD, dmgDD]) {
-        if (dd.open && !dd.contains(evt.target as Node)) dd.open = false;
-      }
-    });
+    if (!this._ddCloser) {
+      this._ddCloser = (evt: PointerEvent) => {
+        for (const dd of [lvlDD, schoolDD, dmgDD]) {
+          if (dd.open && !dd.contains(evt.target as Node)) {
+            dd.open = false;
+            dd.querySelector('summary')?.setAttr('aria-expanded', 'false');
+          }
+        }
+      };
+      document.addEventListener('pointerdown', this._ddCloser, true);
+    }
 
     // 3) Go / Clear
     const btnWrap = container.createDiv({

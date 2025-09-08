@@ -442,6 +442,14 @@ export class GameplaySidebarView extends ItemView {
         return list.includes(path);
     };
 
+    private ensureGameplay() {
+        const plugin = getToolkit(this.app);
+        if (!plugin.settings.gameplay) {
+            plugin.settings.gameplay = { selectedPlayers: [], activeFolder: "World/People/Player Characters/Active" };
+        }
+        return plugin.settings.gameplay as { selectedPlayers: string[]; activeFolder: string };
+    }
+
     private async showDetails(file: TFile) {
         this.detailsOpenPath = file.path;
 
@@ -836,7 +844,7 @@ export class GameplaySidebarView extends ItemView {
                 const idx = list.indexOf(oldPath);
                 if (idx !== -1) {
                     list[idx] = file.path;
-                    plugin.settings.gameplay.selectedPlayers = list;
+                    this.ensureGameplay().selectedPlayers = list;
                     await plugin.saveSettings();
                     this.queueTable();
                 }
@@ -851,12 +859,12 @@ export class GameplaySidebarView extends ItemView {
                 const s = plugin?.settings?.gameplay || {};
                 const list: string[] = s.selectedPlayers || [];
                 if (list.includes(file.path)) {
-                    plugin.settings.gameplay.selectedPlayers = list.filter((p) => p !== file.path);
+                    this.ensureGameplay().selectedPlayers = list.filter((p) => p !== file.path);
                     await plugin.saveSettings();
                     this.queueTable();
                 }
             })
-        );
+        ); 
     }
 
     // Read a string-array frontmatter field regardless of key casing/shape
@@ -906,6 +914,15 @@ export class GameplaySidebarView extends ItemView {
         this.detailsWrap = body.createDiv({ cls: "vv-gp-detailwrap" });
         this.detailsWrap.createDiv({ cls: "vv-gp-detail-empty", text: "Click a name to see details…" });
 
+        const plugin = getToolkit(this.app);
+        if (!plugin.settings.gameplay) {
+            plugin.settings.gameplay = {
+                selectedPlayers: [],
+                activeFolder: "World/People/Player Characters/Active",
+            };
+            await plugin.saveSettings();
+        }
+
         // render everything
         await this.renderAddRow();
         await this.renderTable();
@@ -935,7 +952,7 @@ export class GameplaySidebarView extends ItemView {
 
         const clearBtn = wrap.createEl("button", { cls: "vv-gp-clearall", text: "Clear All" });
         clearBtn.addEventListener("click", async () => {
-            plugin.settings.gameplay.selectedPlayers = [];
+            this.ensureGameplay().selectedPlayers = [];
             await plugin.saveSettings();
             await this.renderTable();
             await this.renderAddRow();
@@ -966,7 +983,7 @@ export class GameplaySidebarView extends ItemView {
 
             cb.addEventListener("change", async () => {
                 if (cb.checked) selected.add(f.path); else selected.delete(f.path);
-                plugin.settings.gameplay.selectedPlayers = Array.from(selected);
+                this.ensureGameplay().selectedPlayers = Array.from(selected);
                 await plugin.saveSettings();
                 updateCountLabel();
                 await this.renderTable();
