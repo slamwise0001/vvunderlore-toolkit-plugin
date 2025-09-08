@@ -1,3 +1,5 @@
+// dnd 5e 2024 species
+
 import type { ParsedMarkdownFile } from "../../types";
 import { replace5eTags } from "./helpers/tagReplacer";
 import {
@@ -18,6 +20,47 @@ function slug(name: string): string {
 }
 
 const BLOCKED_TRAITS = ["Age", "Size", "Languages", "Creature Type", "Speed"];
+
+function linkDisplay(str: string): string {
+  if (typeof str !== "string") return String(str ?? "");
+  const m = str.match(/^\[\[(.+?)\]\]$/);
+  if (!m) return str;
+  const inner = m[1];
+  const pipe = inner.split("|");
+  if (pipe.length > 1) return pipe[1].trim();         // ...|Display
+  const hash = inner.split("#");
+  if (hash.length > 1) return hash[1].trim();         // File#Header
+  return inner.trim();
+}
+
+// Normalize heading names for comparison and lookup
+function normName(n: string): string {
+  return String(n ?? "")
+    .replace(/^Feature:\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+// Find a named entry either at top level or one level nested under entries[]
+function findEntryByName(entries: any[] | undefined, display: string): any | null {
+  if (!Array.isArray(entries)) return null;
+  const target = normName(display);
+
+  // direct hit
+  const direct = entries.find(e => typeof e?.name === "string" && normName(e.name) === target);
+  if (direct) return direct;
+
+  // one level nested
+  for (const e of entries) {
+    if (Array.isArray(e?.entries)) {
+      const sub = e.entries.find((s: any) => typeof s?.name === "string" && normName(s.name) === target);
+      if (sub) return sub;
+    }
+  }
+
+  return null;
+}
 
 export function parseSpeciesFile(
   json: { race: any[]; subrace?: any[]; _editionId?: string },
@@ -146,19 +189,27 @@ const rawVariants = json.race.filter((r: any) =>
     // Traits
     lines.push(`## Traits`);
     const seen = new Set<string>();
-    for (const trait of fm.traits as string[]||[]) {
-      lines.push(`##### ${trait}`);
-      const ent = primary.entries?.find((e:any)=>e.name===trait);
+    for (const trait of (fm.traits as string[] || [])) {
+      const title = linkDisplay(trait);         // plain header text, no link
+      lines.push(`##### ${title}`);
+
+      const ent = findEntryByName(primary.entries, title);
       if (ent?.entries) {
-        ent.entries.forEach((sub:any,idx:number)=>{
-          let blk:string|undefined;
-          if (sub.type==="table")       blk = renderMarkdownTable(sub);
-          else if (sub.type==="list")   blk = sub.items.map((it:any)=>typeof it==="string"?`- ${replace5eTags(it)}`:`- ${it.name}` ).join("\n");
-          else if (typeof sub==="string") blk = replace5eTags(sub);
+        ent.entries.forEach((sub: any, idx: number) => {
+          let blk: string | undefined;
+          if (sub.type === "table") {
+            blk = renderMarkdownTable(sub);
+          } else if (sub.type === "list") {
+            blk = sub.items
+              .map((it: any) => (typeof it === "string" ? `- ${replace5eTags(it)}` : `- ${it.name}`))
+              .join("\n");
+          } else if (typeof sub === "string") {
+            blk = replace5eTags(sub);
+          }
           if (blk && !seen.has(blk)) {
             lines.push(blk);
             seen.add(blk);
-            if (ent.entries.length>1 && idx<ent.entries.length-1) lines.push("");
+            if (ent.entries.length > 1 && idx < ent.entries.length - 1) lines.push("");
           }
         });
       }

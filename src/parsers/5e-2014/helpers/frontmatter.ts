@@ -1,3 +1,5 @@
+//dnd 5e 2014 edition
+
 import { getFullSourceName } from "./sourceMap";
 import { formatSizeAbbrev, formatAlignmentAbbrev } from "../bestiary";
 import { formatRange, formatTime, formatDuration, SCHOOL_MAP } from "../spells";
@@ -167,18 +169,44 @@ export function unifiedWeaponProfs(val: any): string[] {
 }
 
 
-const unifiedSaves = (val: any): string[] => {
-  if (Array.isArray(val)) {
-      return val.map((k: string) =>
-        ({ str: "Strength", dex: "Dexterity", con: "Constitution",
-          int: "Intelligence", wis: "Wisdom", cha: "Charisma" }[k] ?? k.toUpperCase())
-      );
-  }
-  if (typeof val === "object" && val !== null) {
-    return Object.keys(val).map(k => k.toUpperCase());
-  }
-  return [];
+const SAVE_NAME_MAP: Record<string, string> = {
+  str: "Strength",
+  strength: "Strength",
+  dex: "Dexterity",
+  dexterity: "Dexterity",
+  con: "Constitution",
+  constitution: "Constitution",
+  int: "Intelligence",
+  intelligence: "Intelligence",
+  wis: "Wisdom",
+  wisdom: "Wisdom",
+  cha: "Charisma",
+  charisma: "Charisma",
 };
+
+export function unifiedSaves(val: any): string[] {
+  if (!val) return [];
+
+  // Array form
+  if (Array.isArray(val)) {
+    return val.map((k) => {
+      const key = String(k).toLowerCase();
+      return SAVE_NAME_MAP[key] || (key.charAt(0).toUpperCase() + key.slice(1));
+    });
+  }
+
+  // Object form (e.g., { con: true, dex: true })
+  if (typeof val === "object") {
+    return Object.keys(val).map((k) => {
+      const key = k.toLowerCase();
+      return SAVE_NAME_MAP[key] || (key.charAt(0).toUpperCase() + key.slice(1));
+    });
+  }
+
+  // String form
+  const key = String(val).toLowerCase();
+  return [SAVE_NAME_MAP[key] || (key.charAt(0).toUpperCase() + key.slice(1))];
+}
 
 export const unifiedSkills = (val: any): string[] => {
   // 1) “Bestiary” style: flat object mapping skill→modifier
@@ -314,7 +342,7 @@ export const ALL_FIELD_DEFS: FieldDef[] = [
       return choice?.choose?.from?.map((s: string) => cap(s)) ?? [];
     }
   },
-  { callSign: "SAVING_THROWS",        jsonKey: ["save", "proficiency"], conv: unifiedSaves },
+  { callSign: "SAVING_THROWS",        jsonKey: ["save", "proficiency", "savingThrow"], conv: unifiedSaves },
   {
     callSign: "SKILLS",
     jsonKey: ["skill", "skillProf", "skillProficiencies", "startingProficiencies"],
@@ -365,7 +393,7 @@ export const ALL_FIELD_DEFS: FieldDef[] = [
     callSign: "RULESET",
     jsonKey: "name",
     // ignore the raw value, always print HELLO
-    conv: (_raw, _all) => "D&D 5e (2025)",
+    conv: (_raw, _all) => "D&D 5e (2014)",
   }, 
 
   // ─── Spells ───
@@ -452,57 +480,97 @@ export const ALL_FIELD_DEFS: FieldDef[] = [
   callSign: "TRAITS",
   jsonKey: ["classFeatures", "entries"],
   conv: (raw: any, allJson: any): string[] => {
-    // pull the class record so we know its display name
-    const clsRec = Array.isArray(allJson.class) ? allJson.class[0] : allJson;
-    const className = typeof clsRec.name === "string" ? clsRec.name : "";
+    // Display/file name to target for the file-anchor
+    const rec =
+      Array.isArray(allJson.class) ? allJson.class[0] :
+      Array.isArray(allJson.race)  ? allJson.race[0]  :
+      allJson;
+    const fileName = typeof rec?.name === "string"
+      ? rec.name
+      : (typeof allJson?.name === "string" ? allJson.name : "");
 
-    // names we never want to emit
+    // Names to omit across types
     const omit = new Set([
+      // class-specific
       "Ability Score Improvement",
       "Archetype Feature",
       "Subclass Feature",
-      // add more if you like…
+      // species-specific common headings
+      "Age",
+      "Size",
+      "Speed",
+      "Languages",
+      // backgrounds often have generic sections too; add more if needed
     ]);
+
     const seen = new Set<string>();
 
-    // 1) if there's a classFeatures array, use it
+    // ── 1) Classes: use classFeatures if available (existing behavior)
     if (Array.isArray(allJson.classFeatures)) {
+      const classRec = Array.isArray(allJson.class) ? allJson.class[0] : allJson;
+      const className = typeof classRec?.name === "string" ? classRec.name : fileName;
+
       return allJson.classFeatures.flatMap((feat: any) => {
-        // skip subclass‐injected features entirely
         if (feat && typeof feat === "object" && feat.gainSubclassFeature) return [];
 
-        // normalize to a string
         const rawName =
-          typeof feat === "string"
-            ? feat
-            : typeof feat.classFeature === "string"
-            ? feat.classFeature
-            : "";
+          typeof feat === "string"              ? feat :
+          typeof feat.classFeature === "string" ? feat.classFeature :
+          "";
 
-        // drop everything after the first “|”
         const name = rawName.split("|")[0].trim();
         if (!name || omit.has(name) || seen.has(name)) return [];
         seen.add(name);
 
-        // build a nice anchor (must match your headers)
         const anchor = name
-          .replace(/[^\w\s]/g, "")    // strip punctuation
-          .replace(/\s+/g, " ")       // collapse spaces
+          .replace(/[^\w\s]/g, "")
+          .replace(/\s+/g, " ")
           .trim()
-          .replace(/\b\w/g, (c: any) => c.toUpperCase()); // Title Case
+          .replace(/\b\w/g, (c: any) => c.toUpperCase());
 
-        // produce a file-anchor link
-        return `[[${className}#${anchor}|${name}]]`;
+        return className ? [`[[${className}#${anchor}|${name}]]`] : [name];
       });
     }
 
-    // 2) otherwise fall back to your old entries-based logic
+    // ── 2) Backgrounds / Species / Sub-species: mine names from entries[]
     const ents = Array.isArray(raw) ? raw : [];
-    const featureNames = ents
-      .filter((e: any) => e?.data?.isFeature && typeof e.name === "string")
-      .map((e: any) => e.name.replace(/^Feature:\s*/, "").trim());
-    if (featureNames.length) return featureNames;
+    const names: string[] = [];
 
+    const pushName = (n: string | undefined) => {
+      const name = (n ?? "").replace(/^Feature:\s*/, "").trim();
+      if (!name || omit.has(name) || seen.has(name)) return;
+      seen.add(name);
+      names.push(name);
+    };
+
+    for (const e of ents) {
+      if (!e) continue;
+      if (typeof e === "object" && typeof e.name === "string") {
+        pushName(e.name);
+      }
+      // nested entries blocks can also carry named sections
+      if (typeof e === "object" && Array.isArray(e.entries)) {
+        for (const sub of e.entries) {
+          if (sub && typeof sub === "object" && typeof sub.name === "string") {
+            pushName(sub.name);
+          }
+        }
+      }
+    }
+
+    // If we found names, link them to the current file’s headers
+    if (names.length) {
+      return names.map(name => {
+        const anchor = name
+          .replace(/[^\w\s]/g, "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .replace(/\b\w/g, (c: any) => c.toUpperCase());
+        return fileName ? `[[${fileName}#${anchor}|${name}]]` : name;
+      });
+    }
+
+    // ── 3) Fallback: preserve previous non-link behavior when nothing matched
     return ents
       .filter((e: any) => e && typeof e.name === "string")
       .map((e: any) => e.name.replace(/^Feature:\s*/, "").trim());
@@ -512,7 +580,7 @@ export const ALL_FIELD_DEFS: FieldDef[] = [
 
   { callSign: "AC", jsonKey: "ac", conv: a => Array.isArray(a)?a[0].ac:a },
   { callSign: "HP", jsonKey: "hp", conv: hp => hp?.average ?? hp },
-  { callSign: "CHALLENGE_RATING", jsonKey: "cr" },
+  { callSign: "CHALLENGE_RATING",jsonKey: "cr", conv: (raw: any) => (typeof raw === "object" && raw !== null && "cr" in raw ? raw.cr : raw)},
   { callSign: "STRENGTH",     jsonKey: "ability", conv: arr=>Array.isArray(arr)?arr[0]:arr?.str ?? 0 },
   { callSign: "DEXTERITY",    jsonKey: "ability", conv: arr=>Array.isArray(arr)?arr[1]:arr?.dex ?? 0 },
   { callSign: "CONSTITUTION", jsonKey: "ability", conv: arr=>Array.isArray(arr)?arr[2]:arr?.con ?? 0 },
@@ -616,7 +684,7 @@ export const ALL_FIELD_DEFS: FieldDef[] = [
   { callSign: "DAMAGE_TYPES", jsonKey: "dmgType", conv: dt => dt == null ? [] : Array.isArray(dt) ? dt : [dt] },
   { callSign: "RANGE", jsonKey: "range" },
   { callSign: "RELOAD", jsonKey: "reload" },
-  { callSign: "AMMO_TYPE", jsonKey: "ammoType" },
+  { callSign: "AMMO_TYPE", jsonKey: "ammoType", conv: (v: any) => typeof v === "string" ? v.split("|")[0].charAt(0).toUpperCase() + v.split("|")[0].slice(1).toLowerCase() : "" },
   { callSign: "STEALTH_DISADVANTAGE", jsonKey: "stealth" },
   {
     callSign: "ATTUNEMENT",
@@ -840,6 +908,8 @@ export const SPELL_KEYS: FMKey[] = [
   "SCHOOL",
   "CASTING_TIME",
   "SPELL_RANGE",
+  "SAVING_THROWS",
+  "DAMAGE_TYPE",
   "DURATION",
   "VERBAL",
   "SOMATIC",

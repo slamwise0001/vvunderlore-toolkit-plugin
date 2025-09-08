@@ -22,7 +22,10 @@
   },
   "include": [
     "**/*.ts",
-    "**/*.d.ts"
+    "**/*.d.ts",
+    "obsidian.commands.d.ts",
+    "src",
+    "src/gobal.d.ts"
   ]
 }
 

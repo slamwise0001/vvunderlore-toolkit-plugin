@@ -40,6 +40,15 @@ function formatFeatureLink(name: string): string {
   
     return `[[#${anchor}]]`;
   }
+
+function toHeaderAnchor(name: string): string {
+  return name
+    .replace(/[^\w\s]/g, "")
+    .replace(/-/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, l => l.toUpperCase());
+}
   
 export const OPT_FEATURE_TYPE_TO_FULL: Record<string,string> = {
   AI:   "Artificer Infusion",
@@ -477,6 +486,21 @@ for (const f of subclassFeatures) {
   }
 }
 
+const IGNORE_TRAITS = ["Ability Score Improvement", "Archetype Feature", "Subclass Feature"];
+const traitNames = Array.from(
+  new Set(
+    Object.values(featsByLvl)
+      .flat()
+      .map((f: any) => String(f?.name || "").trim())
+      .filter(n => n && !IGNORE_TRAITS.some(s => n.toLowerCase().includes(s.toLowerCase())))
+  )
+);
+
+const traitLinks = traitNames.map(n => `[[${subclassName}#${toHeaderAnchor(n)}|${n}]]`);
+
+// Minimal frontmatter for subclasses; FM_FIELDS keeps ordering consistent
+const subYaml = serializeFrontmatter({ traits: traitLinks }, CLASS_META_DEFS);
+
 for (const lvl of Object.keys(featsByLvl).map(Number).sort((a,b)=>a-b)) {
   subLines.push(`---`, `## Level ${lvl}`);
 
@@ -549,9 +573,12 @@ for (const lvl of Object.keys(featsByLvl).map(Number).sort((a,b)=>a-b)) {
 
 
   // ─── Clean up & push ───
-  const subclassContent = subLines
+  const subclassContentBody = subLines
     .join("\n\n")
     .replace(/\n{3,}/g, "\n\n");
+
+  const subclassContent = `---\n${subYaml}\n---\n\n${subclassContentBody}`;
+
   subclassFiles.push({
     path: `Classes/${className}/Subclasses/${subclassName}.md`,
     content: subclassContent

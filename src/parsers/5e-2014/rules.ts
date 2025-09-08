@@ -89,10 +89,7 @@ export function parseActionsFile(json: any, editionId: string): ParsedMarkdownFi
   ];
 }
 
-/**
- * Parse combined conditionsdiseases.json into two Markdown notes: Conditions.md and Diseases.md
- * adding separators between entries.
- */
+
 export function parseConditionsDiseasesFile(json: any, editionId: string): ParsedMarkdownFile[] {
   const outputs: ParsedMarkdownFile[] = [];
   const processItems = (items: any[], outPath: string) => {

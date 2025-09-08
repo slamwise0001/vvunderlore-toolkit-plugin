@@ -15,6 +15,10 @@ export function replace5eTags(input: unknown): string {
 
   // now run all your @-tag replacements on that text
   return text
+    .replace(/\{#itemEntry\s+([^}|]+)(?:\|[^}]*)?\}/gi, (_m, rawName) => {
+      return `[[${capitalizeEach(String(rawName).trim())}]]`;
+    }
+    )
     .replace(/\{@(spell|item|creature|race) ([^|}]+)(?:\|[^}]+)?\}/g, (_, __, name) =>
       `[[${capitalizeEach(name)}]]`
     )

@@ -7,9 +7,11 @@ import {
   TFolder,
   TFile,
   Vault,
-  requestUrl
-} from 'obsidian'; 
- 
+  requestUrl,
+  WorkspaceLeaf,
+  addIcon
+} from 'obsidian';
+
 import { ToolkitSettingsTab } from './settings';
 import { ToolkitFileCacheManager } from './fileCacheManager';
 import type { ToolkitFileCacheEntry } from './fileCacheManager';
@@ -19,16 +21,97 @@ import { AVAILABLE_EDITIONS } from './editions';
 import { importRulesetData } from './rulesetInstaller';
 import { ConfirmFreshInstallModal } from './firstinstallconfirm';
 import "../styles.css";
+import { SidebarTemplatesView, SIDEBAR_VIEW_TYPE } from './sidebar/sb-worldbuilding';
+import { GameplaySidebarView, GAMEPLAY_VIEW_TYPE } from './sidebar/sb-gameplay';
 
 function getRulesetDisplayName(key: string): string {
- const ed = AVAILABLE_EDITIONS.find(e => e.id === key);
- return ed?.label ?? key;
+  const ed = AVAILABLE_EDITIONS.find(e => e.id === key);
+  return ed?.label ?? key;
 }
 
-const loadingIcon = 
-'data:image/png;base64,' +
-'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'
- 
+const mapmaking_icon = `
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+    <g stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20.97 10.15v7.08c0 .38-.21.72-.55.89l-4.55 2.28c-.56.28-1.23.28-1.79 0l-4.21-2.11c-.56-.28-1.23-.28-1.79 0L4.42 20.12a1 1 0 0 1-1.45-.9V6.47c0-.38.21-.72.55-.89l4.55-2.28c.56-.28 1.23-.28 1.79 0l2.52 1.28"/>
+      <path d="M14.97 13.51v7.1"/>
+      <path d="M8.97 3.09v15"/>
+      <path d="M21.48 5.03a1.79 1.79 0 1 0-2.53-2.53l-4.22 4.22c-.2.2-.35.45-.43.72l-.7 2.42a.4.4 0 0 0 .53.49l2.42-.7c.27-.08.52-.23.72-.43l4.22-4.22Z"/>
+    </g>
+  </svg>
+`;
+
+const gameplay_icon = `
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 24 24">
+  <!-- Generator: Adobe Illustrator 29.2.1, SVG Export Plug-In . SVG Version: 2.1.0 Build 116)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: currentColor;
+      }
+
+      .st0, .st1 {
+        stroke: currentColor;
+        stroke-miterlimit: 10;
+      }
+
+      .st0, .st1, .st2 {
+        stroke-width: 2px;
+      }
+
+      .st1, .st2 {
+        fill: none;
+      }
+
+      .st2 {
+        stroke: currentColor;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .st3 {
+        display: none;
+      }
+    </style>
+  </defs>
+  <g id="Layer_4" class="st3">
+    <path class="st0" d="M11.98-25.16c-1.29,0-2.79.18-3.25.23-.07,0-.12-.03-.12-.08l.19-2.56c0-.08.05-.16.11-.21.22-.17.91-.51,3.06-.51"/>
+    <path class="st1" d="M8.24-26.61s-2.39.43-2.78.76c-.22.19-1.52,9.89-1.9,12.91-.07.56.18,1.12.64,1.44.57.39,1.31.84,1.67.84"/>
+    <path class="st1" d="M11.98-8.36c-2.92,0-5.04-.09-5.7-.13-.13,0-.21-.11-.21-.24.03-.42.11-1.5.16-2.1.02-.26.19-.49.44-.57l2.65-1.28h2.66"/>
+    <path class="st0" d="M11.98-8.36c-2.92,0-5.04-.09-5.7-.13-.13,0-.21-.11-.21-.24.03-.42.11-1.5.16-2.1.02-.26.19-.49.44-.57l2.65-1.28h2.66"/>
+    <path class="st0" d="M11.98-8.36c2.92,0,5.04-.09,5.7-.13.13,0,.21-.11.21-.24-.03-.42-.11-1.5-.16-2.1-.02-.26-.19-.49-.44-.57l-2.65-1.28h-2.66"/>
+    <path class="st0" d="M11.98-25.16c1.29,0,2.79.18,3.25.23.07,0,.12-.03.12-.08l-.19-2.56c0-.08-.05-.16-.11-.21-.22-.17-.91-.51-3.06-.51"/>
+    <path class="st1" d="M9-24.92l-1.47,6.19c-.12.52-.19,1.06-.17,1.59,0,.41.05.88.15,1.29.25.94,1.39,2.3,1.39,3.17h6.17c0-.86,1.13-2.23,1.38-3.17.11-.4.14-.88.15-1.29.01-.54-.05-1.07-.17-1.59l-1.47-6.19-.23-.11c-1.83-.22-3.67-.22-5.5,0,0,0-.23.11-.23.11Z"/>
+    <path class="st1" d="M15.77-26.61s2.39.43,2.78.76c.22.19,1.52,9.89,1.9,12.91.07.56-.18,1.12-.64,1.44-.57.39-1.31.84-1.67.84"/>
+  </g>
+  <g id="Layer_5" class="st3">
+    <path class="st2" d="M20.97-16.16v7.08c0,.38-.21.72-.55.89l-4.55,2.28c-.56.28-1.23.28-1.79,0l-4.21-2.11c-.56-.28-1.23-.28-1.79,0l-3.66,1.83c-.49.25-1.09.05-1.34-.45-.07-.14-.11-.29-.11-.45v-12.76c0-.38.21-.72.55-.89l4.55-2.28c.56-.28,1.23-.28,1.79,0l2.52,1.28"/>
+    <path class="st2" d="M14.97-12.8v7.1"/>
+    <path class="st2" d="M8.97-23.23v15"/>
+    <path class="st2" d="M21.48-21.29c.7-.7.7-1.83,0-2.53s-1.83-.7-2.53,0l-4.22,4.22c-.2.2-.35.45-.43.72l-.7,2.42c-.07.22.06.46.29.52.08.02.16.02.24,0l2.42-.7c.27-.08.52-.23.72-.43l4.22-4.22h0Z"/>
+  </g>
+  <g id="Layer_6">
+    <path class="st2" d="M5.87,10.85h12.15v9.15c0,.55-.45,1-1,1H6.87c-.55,0-1-.45-1-1v-9.15h0Z"/>
+    <polyline class="st2" points="5.87 10.85 1.97 9.1 1.97 19.15 6.56 20.95"/>
+    <polyline class="st2" points="18.02 10.85 22 9.1 22 19.15 17.33 20.95"/>
+  </g>
+  <g id="Layer_7">
+    <path class="st2" d="M8.5,5.77s-2.08-.95-1.89-3.34c0,0,1.56,1.84,2.79,1.86"/>
+    <path class="st2" d="M15.51,5.77s2.08-.95,1.89-3.34c0,0-1.56,1.84-2.79,1.86"/>
+  </g>
+  <g id="Layer_3" class="st3">
+    <path class="st2" d="M40.66,11.97h-5"/>
+    <path class="st2" d="M40.66,7.97h-5"/>
+    <path class="st2" d="M44.66,16.97V4.97c0-1.1-.9-2-2-2h-13"/>
+    <path class="st2" d="M33.66,20.97h12c1.1,0,2-.9,2-2v-1c0-.55-.45-1-1-1h-10c-.55,0-1,.45-1,1v1c0,1.1-.9,2-2,2s-2-.9-2-2V4.97c0-1.1-.9-2-2-2s-2,.9-2,2v2c0,.55.45,1,1,1h3"/>
+  </g>
+  <path class="st2" d="M14.17,10.67c.97-.69,1.65-2.05,1.65-3.34,0-2.11-1.71-3.82-3.82-3.82s-3.82,1.71-3.82,3.82c0,1.29.69,2.64,1.66,3.34"/>
+</svg>
+`
+
+const loadingIcon =
+  'data:image/png;base64,' +
+  'iVBORw0KGgoAAAANSUhEUgAAANEAAADRCAYAAABSOlfvAAAACXBIWXMAABcRAAAXEQHKJvM/AAAL5klEQVR4nO3dT6wdZRnH8V9hyguFYltKSgXxFAhoQqUUQiBGuBgxETG6qUFctBpN3NbEuDCR28T4Jy5AjQkLE0t0oSZGdOXC2INKMBrN3YALGzkQIEqUXrFCX5wWF2dMjM7znN73mZl7zu33k5zNPJl33nvP/fVMnvP2nU3C/6lSOiTpYMfDHq5zXul4TMyBar0nMKdGkpY6HnNbx+NhTpy33hMAFh0hAoIIERBEiIAgQgQE0Z1bu6OSHjVqByUdMmoPVSmt9jGhNnXOdw91rXMdIVq7Z+ucx22FKqUl57x9vcwG647bOSCIEAFBhAgIIkRAECECgujODeewpJJV3LdI2m7UDki6qq1QpXSs4Fq0xgsQouGsWK1xT5VSJWmXUf6HpNNGbWmt10IZbueAIEIEBBEiIIgQAUGECAiiO9ehOudlScsdD/s5lXXarJXmkvQHq1Cl9EbBtcbncmucTyIgiBABQYQICCJEQBAhAoIIERC0ab0nsGiqlJYlPdjxsPdIetyo1XXOrW3nZqX2knHeW5zrfdOpvdOpPWwc3yPp40Ztw7e/+SQCgggREESIgCBCBAQRIiCIEAFBG7rF3WzrW7Rhxxy5u2RvBk+V0nVWrc75uHPeAaskaYtRu0HSZ4zahmh/80kEBBEiIIgQAUGECAgiREDQQuyxUKW0TWUPyRpJGnc6mX46mjdJ2mbU9lUpWeet1DmXPH3vtYJzpOmOq20uknSZUXtV9nswcR6MtlrnXLLt8uAWosUdaFV33kKtUjpP9u/N+32ekWRtAnJM0l0F0+m8/e2pUhoZpd2S7jNqz9Q5f8sYb0n2+7ow7W9u54AgQgQEESIgiBABQYQICJqbFveMNvZIZa1qs0XadJpGBWNukt+Fs2pnnHPe5NRWJFlt7JL2tqqU3uaUTzm1S4zjm525nHTGW1VZ+3tS5zxxxh3U3LS4h2539rThSB/6WMX9baf8nFP7nXH8jKTXjdqJOuffntXE/suMv4cjzb7nc4HbOSCIEAFBhAgIIkRAECECggZvcTtty5HsdqfXqi5d4S3nep6RylrjHq+NnaqUrjZqJyXVbYU651ec63nv+8ipWVsdn9Z0tXYbbx4er/3t/R0N3v4evMXtPM6wqI0dWOFd1CbtqTVutrGrlD4qyQqRGb465yeti1UpPebM5YNObWQcP1Xn/BfnvE7NeA8Gb39zOwcEESIgiBABQYQICCJEQFAvLW6n/Sh138YeOWN6JgXn/Oc863oj2R2s0tXYuyVdY9TOyFglXSV7dxNJO53aE07tduP4S5IG687Nm76+JzJbznXOJW31fc6Yg25oUed8VNLRttqM1uvhwtXY75f9SMk+WLv2SNLfjONjLf6e58W4nQOCCBEQRIiAIEIEBBEiIKiXBajOIlOzO1eltFXTp6q1uUXSI0ZtbrabbVr71lzM38lZsN6nyJiWrzi1zxaMN2k6mmvStOgvN8r7m9dajfvYdnludvuRtFXSrUbt+iEnEvC4pF8YtZ+rbL/td8v+Lwhv1Dn3ESTLctvBWZvMyPhKYIYk6Sqj9vs6558Yc1mWv8p+XDAXF7dzQBAhAoIIERBEiIAgQgQEFXfnmi6I5YhzntWuvUz209ZOSvqSUXvGmcd6sLplR1W+2twac8jOnGci/z1fts5z2t9Z0vNG7ZIqJauTu9uaR1+Kvycq+S6oOc+qLWnaBm7zK0n3GrXTdc7WTjNYZ33ssd4E6BajfJ/sf4x72cSE2zkgiBABQYQICCJEQBAhAoLWYwHqknHc20/bexKb9xhHbEwvSzpu1CaSXjBq+512+9HSPbznKUQj55wzdc65+6lgQb2s6Sb6bZ6V/f3SfkkfMGpjFe4Axe0cEESIgCBCBAQRIiCIEAFBbncusFL7Ruc8a5+BVWfMiTMezj2nnNrTkn5m1O6UdGXXk5nV4jY3fJixUvt+Z0wrROOhHxOIxVTnfEpGkKqUnpb9/NirJL2r6/lwOwcEESIgiBABQYQICCJEQFBfC1CtPbVx7lmRvT/5qErJ2n9hpc75cFuhSumQpIPGeRc2rzZXWJOM6CtEW3saFwumznlVxi5HzSYmSwXDjgrP6wW3c0AQIQKCCBEQRIiAIEIEBPXVnbuzp3EByd/X/Kbm1WafpJuN2kNVSqtG7XCd84o1mb5CtLOncQE1u/JM2mrNHvGXGqeOnGG93aa2efPhdg4IIkRAECECgggREESIgKC+unMnexoXmOWM7C2G/+Scd7NmdOEsfYWo7mlc4GxYj0L9p6SXjJr1wISZuJ0DgggREESIgCBCBAQRIiCor+6ctY0r0Lf9kj5p1DZLusCobS+9YF8hsvr0QN+2S9oz5AW5nQOCCBEQRIiAIEIEBBEiIKiv7twPnRqbmKBPX5f0HaN2uez9P74oaW/JBfkkAoIIERBEiIAgQgQEESIgiBABQX21uH/k1L5gHL+t2QK2zbjO2XpkIeZY8zQ865GS4zrnTR1fcqukK43axyQd6vh6fBIBUYQICCJEQBAhAoIIERBEiIAgt8XttR+ddvSs835glHZLuteoXVCltMuovV7nfMK6HjaeKqVlSQ92POzddc7jkhP5JAKCCBEQRIiAIEIEBBEiIIgQAUF9reI21Tl/onUiKV0t6QHjtGsk/dmojSWxwnsd9bFSu0pJkqzznpL0faO2U9JlRu2K5tUpPomAIEIEBBEiIIgQAUGECAiKdOfG5qDTbk0rZ5FflvScUfuXc72Jc73VOucVay5YG+f3PJL9/pT+/i+QtMOobZN0kVHbIukSZ8zOdb1JhKTyFd6F11qS316l/d2RITeSaVbt32OU75B0u1Hb3bzWilXcwHohREAQIQKCCBEQRIiAoL4WoP7SvGD37ehVlbW/PZM650nBeQtvxu9rbBw337cqpW2S9hVMZbuktxu13ZIuNmqbnTEnzavN6lnNqkVfLW7rB5Skk8bxPtqkS7Lb354jdc7LXc5lUXT99UTgPfCcllRbl5R0vlHr5X3ldg4IIkRAECECgggREESIgKC+WtynndrYOO61o1+V9LxRe73O+a9GzWt/uxahNV6ltE/TFc1dGnc83inZq/PP13TVdZtK06feWawPgBckvWjUrL+hkF5a3CVmtEL/KOkho/ZinfOPO57Lssr2eh60NV6ldEzSUpdj9rDKfo+k1s1pNA3JDUZth6RbCy75NUkPG7XVOufi74Ms3M4BQYQICCJEQBAhAoIIERA0+DbCjlck/dqpXW/UdlQp/b3gel47eqJhW+OlJuq+JW0q/Nl2yd6692LZm5F47e2J7NXYxzVtq7exFq2GzFOL+0JNf+Ftbpf0vY4v2Xk7uqfHIHqKN9co4a3wdmRJ1vd4SdO9s9dqrlbZczsHBBEiIIgQAUGECAgiREDQPLW4a0lWq/opSUeM2lslHTJqL0v6jVWrUrLa5nubV5ux0xGzjvdlUnJS00VsNaPr9V3juLflbyXpUqNm7YUgTX+2R43a2DlvcHPT4i41Y/X3cUnfMGonmlebByR9xKjNVXu1ROlmJFVK7zVK75D01ei8/sfC7KPO7RwQRIiAIEIEBBEiIIgQAUHz1OIuNZHd/t4q6X1G7TXZq31vLJlIldIO2auS75G9wPZoyQYnVUqHNH3UY5tH1jpeM+ayU7a6etYcZpnIbmNPCscc3MKHqPnjW26rNe3vTw84nR2SrjVqn9K0FdxmrLI/moOyNyp5rGA8yV+F/lPjuPUPxyyTRf+6QOJ2DggjREAQIQKCCBEQRIiAoIXvzs0wkd3+luwFuHc1r9aa0wb29iCwVjJL0pYqJav+Htmt8Tc7Y3p7dHv7Vdzv1K4zjl/knDPRBmhjexZ+FXepKqVNsn/+ByV9vmDY482rzW2yW8EflvSkUfuy7P+Wca3sZ5d+yDgu+WHvdF9zLdBq7FLczgFBhAgIIkRAECECgggRELTRW9yzWF2qY07Ns1f2IlOvDXxA0h3OmFaLe7MzpteqLuV9XWCZdD2JeXPOtrj7sA57cQ+q60dRbhTczgFBhAgIIkRAECECgggREHSut7i7Nl7vCWB4/wYRBbn198/rpAAAAABJRU5ErkJggg=='
+
 class InstallingModal extends Modal {
   constructor(app: App) { super(app); }
   onOpen() {
@@ -58,14 +141,14 @@ class InstallingModal extends Modal {
   }
   onClose() {
     this.contentEl.empty();
-  } 
+  }
 }
 
 
 interface PreviewItem {
   filePath: string;
   action: string;
-  selected: boolean; 
+  selected: boolean;
   isFolder?: boolean;
 }
 
@@ -107,6 +190,9 @@ interface ToolkitSettings {
   rulesetReference: string[];
   reparseGamesets: boolean;
   isFirstRun: "yes" | "no" | "shown";
+  sessionTitlePreference: "name" | "date";
+  enableSidebarPreviews: boolean;
+
 }
 
 const DEFAULT_SETTINGS: ToolkitSettings = {
@@ -137,7 +223,9 @@ const DEFAULT_SETTINGS: ToolkitSettings = {
   rulesetCompendium: "",
   rulesetReference: [],
   reparseGamesets: true,
-  isFirstRun: "yes"
+  isFirstRun: "yes",
+  sessionTitlePreference: "name",
+  enableSidebarPreviews: true,
 };
 
 interface CustomPathEntry {
@@ -151,13 +239,13 @@ export interface ManifestFileEntry {
   key: string;
   customOverride?: boolean;
   displayName?: string;
-  optional?: boolean; // ← mark optional files/folders if you wish
+  optional?: boolean; 
 }
 
 export interface InstallOptions {
-	compendium: string;
-	references: string[];
-  }
+  compendium: string;
+  references: string[];
+}
 
 export default class VVunderloreToolkitPlugin extends Plugin {
   requiresGraph: Map<string, string[]>;
@@ -190,7 +278,7 @@ export default class VVunderloreToolkitPlugin extends Plugin {
 
   public pendingRulesetKey: string = '';
   public pendingReferenceKeys: string[] = [];
-  
+
   // ─── HELPERS ────────────────────────────────────────────────────────
 
   /** Given a GitHub path, return the overridden vault path or the original. */
@@ -203,7 +291,7 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     return custom?.vaultPath ?? githubPath;
   }
 
-  
+
 
   /** Convert “some/folder/file.md” → “some-folder-file” (lowercased, no extension). */
   keyFor(path: string): string {
@@ -223,101 +311,101 @@ export default class VVunderloreToolkitPlugin extends Plugin {
         path.includes(`/${ex}`)
     );
   }
-  
+
   // ─── CUSTOM INSTALL LOGIC ───────────────────────────────────────────
 
-public async performCustomInstall(
-  toInstall: { path: string; isFolder: boolean }[]
-): Promise<void> {
-  // 0) Close any open markdown & graph panes
-  this.app.workspace.getLeavesOfType('markdown').forEach(l => l.detach());
-  this.app.workspace.getLeavesOfType('graph').forEach(l => l.detach());
+  public async performCustomInstall(
+    toInstall: { path: string; isFolder: boolean }[]
+  ): Promise<void> {
+    // 0) Close any open markdown & graph panes
+    this.app.workspace.getLeavesOfType('markdown').forEach(l => l.detach());
+    this.app.workspace.getLeavesOfType('graph').forEach(l => l.detach());
 
-  // 1) Show the “Installing…” spinner
-  const installing = new InstallingModal(this.app);
-  installing.open();
+    // 1) Show the “Installing…” spinner
+    const installing = new InstallingModal(this.app);
+    installing.open();
 
-  try {
-    // 2) Optional backup
-    const allFiles = this.app.vault.getAllLoadedFiles()
-      .filter((f): f is TFile => f instanceof TFile)
-      .map(f => f.path)
-      .filter(p => p !== '.vvunderlore_installed');
-    if (allFiles.length && this.settings.autoBackupBeforeUpdate) {
-      const folder = await this.backupManager.backupVaultMirror('pre-custom-install');
-      new Notice(`Backup before custom‐install at: ${folder}`);
-    }
-
-    // 3) Loop over exactly the selected files/folders
-    for (const entry of toInstall) {
-      if (entry.isFolder) {
-        if (!(await this.app.vault.adapter.exists(entry.path))) {
-          await this.app.vault.createFolder(entry.path);
-        }
-      } else {
-        const manifestEntry = this.manifestCache.files.find(f => f.path === entry.path);
-        if (!manifestEntry) continue;
-        await this.updateEntryFromManifest(manifestEntry, true);
+    try {
+      // 2) Optional backup
+      const allFiles = this.app.vault.getAllLoadedFiles()
+        .filter((f): f is TFile => f instanceof TFile)
+        .map(f => f.path)
+        .filter(p => p !== '.vvunderlore_installed');
+      if (allFiles.length && this.settings.autoBackupBeforeUpdate) {
+        const folder = await this.backupManager.backupVaultMirror('pre-custom-install');
+        new Notice(`Backup before custom‐install at: ${folder}`);
       }
+
+      // 3) Loop over exactly the selected files/folders
+      for (const entry of toInstall) {
+        if (entry.isFolder) {
+          if (!(await this.app.vault.adapter.exists(entry.path))) {
+            await this.app.vault.createFolder(entry.path);
+          }
+        } else {
+          const manifestEntry = this.manifestCache.files.find(f => f.path === entry.path);
+          if (!manifestEntry) continue;
+          await this.updateEntryFromManifest(manifestEntry, true);
+        }
+      }
+
+      // 4) Bump version.json + settings
+      await this.updateVersionFile();
+      this.settings.installedVersion = this.settings.latestToolkitVersion!;
+      this.settings.lastForceUpdate = new Date().toISOString();
+      await this.saveSettings();
+
+      // 5) Import selected compendium + references
+      const comp = this.settings.rulesetCompendium;
+      const refs = this.settings.rulesetReference ?? [];
+      if (comp) {
+        const jobs: Promise<unknown>[] = [
+          importRulesetData({ app: this.app, editionKey: comp, targetPath: "Compendium" }),
+          ...refs.map(refKey => {
+            const label = getRulesetDisplayName(refKey);
+            return importRulesetData({
+              app: this.app,
+              editionKey: refKey,
+              targetPath: `Resources/Rulesets/${label}`,
+            });
+          })
+        ];
+        await Promise.all(jobs);
+      }
+
+      // 6) Marker + re‐enable highlighting + repaint UI
+      const marker = '.vvunderlore_installed';
+      if (!(await this.app.vault.adapter.exists(marker))) {
+        await this.app.vault.create(marker, '');
+      }
+      this.settings.highlightEnabled = true;
+      await this.saveSettings();
+      this.enableHighlight();
+      if (this.settingsTab) this.settingsTab.display();
+
+      // 7) Success modal & reload vault
+      installing.close();
+      const success = new Modal(this.app);
+      success.onOpen = () => {
+        success.contentEl.empty();
+        success.titleEl.setText('✅ Custom Install Complete');
+        success.contentEl.createEl('div', {
+          text: 'Reloading vault in 3 seconds…',
+          cls: 'installsuccess'
+        });
+      };
+      success.open();
+      setTimeout(() => {
+        success.close();
+        location.reload();
+      }, 3000);
+
+    } catch (err) {
+      console.error('❌ performCustomInstall failed:', err);
+      installing.close();
+      new Notice('❌ Custom install failed; check console for details.');
     }
-
-    // 4) Bump version.json + settings
-    await this.updateVersionFile();
-    this.settings.installedVersion = this.settings.latestToolkitVersion!;
-    this.settings.lastForceUpdate = new Date().toISOString();
-    await this.saveSettings();
-
-    // 5) Import selected compendium + references
-    const comp = this.settings.rulesetCompendium;
-    const refs = this.settings.rulesetReference ?? [];
-    if (comp) {
-      const jobs: Promise<unknown>[] = [
-        importRulesetData({ app: this.app, editionKey: comp,   targetPath: "Compendium" }),
-        ...refs.map(refKey => {
-          const label = getRulesetDisplayName(refKey);
-          return importRulesetData({
-            app: this.app,
-            editionKey: refKey,
-            targetPath: `Resources/Rulesets/${label}`,
-          });
-        })
-      ];
-      await Promise.all(jobs);
-    }
-
-    // 6) Marker + re‐enable highlighting + repaint UI
-    const marker = '.vvunderlore_installed';
-    if (!(await this.app.vault.adapter.exists(marker))) {
-      await this.app.vault.create(marker, '');
-    }
-    this.settings.highlightEnabled = true;
-    await this.saveSettings();
-    this.enableHighlight();
-    if (this.settingsTab) this.settingsTab.display();
-
-    // 7) Success modal & reload vault
-    installing.close();
-    const success = new Modal(this.app);
-    success.onOpen = () => {
-      success.contentEl.empty();
-      success.titleEl.setText('✅ Custom Install Complete');
-      success.contentEl.createEl('div', {
-        text: 'Reloading vault in 3 seconds…',
-        cls: 'installsuccess'
-      });
-    };
-    success.open();
-    setTimeout(() => {
-      success.close();
-      location.reload();
-    }, 3000);
-
-  } catch (err) {
-    console.error('❌ performCustomInstall failed:', err);
-    installing.close();
-    new Notice('❌ Custom install failed; check console for details.');
   }
-}
 
 
   // ─── HIGHLIGHTING (Light + Dark Mode) ──────────────────────────────
@@ -331,10 +419,10 @@ public async performCustomInstall(
       return `.nav-file-title[data-path="${escaped}"]`;
     });
 
-    const folderSelectors = this.manifestCache.folders.map((f) => {
-      const escaped = f.path.replace(/"/g, '\\"');
-      return `.nav-folder-title[data-path="${escaped}"]`;
-    });
+    // const folderSelectors = this.manifestCache.folders.map((f) => {
+    //   const escaped = f.path.replace(/"/g, '\\"');
+    //   return `.nav-folder-title[data-path="${escaped}"]`;
+    // });
 
     const lines: string[] = [
       `:root {`,
@@ -355,13 +443,13 @@ public async performCustomInstall(
       lines.push(``);
     }
 
-    if (folderSelectors.length) {
-      lines.push(`${folderSelectors.join(', ')} {`);
-      lines.push(`  background-color: var(--vvunderlore-toolkit-highlight);`);
-      lines.push(`  border-radius: 3px;`);
-      lines.push(`}`);
-      lines.push(``);
-    }
+    // if (folderSelectors.length) {
+    //   lines.push(`${folderSelectors.join(', ')} {`);
+    //   lines.push(`  background-color: var(--vvunderlore-toolkit-highlight);`);
+    //   lines.push(`  border-radius: 3px;`);
+    //   lines.push(`}`);
+    //   lines.push(``);
+    // }
 
     return lines.join('\n');
   }
@@ -415,14 +503,14 @@ public async performCustomInstall(
 
   // ─── MARKER FILE CHECKS (first‐run detection) ───────────────────────
 
-private async checkMarkerFile() {
-  const markerPath = '.vvunderlore_installed';
-  const markerExists = await this.app.vault.adapter.exists(markerPath);
+  private async checkMarkerFile() {
+    const markerPath = '.vvunderlore_installed';
+    const markerExists = await this.app.vault.adapter.exists(markerPath);
     this.isFirstRun = !markerExists;
     delete (this.settings as any).needsInstall;
     await this.saveSettings();
     this.settingsTab.display();
-}
+  }
 
 
   // ─── MANIFEST SYNC ────────────────────────────────────────────────────
@@ -431,7 +519,7 @@ private async checkMarkerFile() {
     try {
       const res = await requestUrl({
         url: 'https://raw.githubusercontent.com/slamwise0001/VVunderlore-Toolkit-Full/main/manifest.json'
-    });
+      });
 
       const manifest = res.json;
       this.settings.latestDefaults = manifest.defaultPaths || {};
@@ -445,147 +533,172 @@ private async checkMarkerFile() {
       console.error('Error syncing manifest:', error);
       new Notice('Failed to sync manifest.');
     }
-  } 
+  }
 
   // ─── PLUGIN LIFECYCLE ─────────────────────────────────────────────────
 
   async onload() {
     await this.loadSettings();
- 
-    if (this.settings.isFirstRun === "no") {
-  this.app.workspace.onLayoutReady(() => {
-    const welcome = this.app.vault.getAbstractFileByPath("Welcome.md");
-    if (welcome instanceof TFile) {
-      this.app.workspace.detachLeavesOfType("settings");
-      this.app.workspace.getLeaf(true).openFile(welcome);
-    } 
-    // Prevent it from triggering again
-    this.settings.isFirstRun = "shown";
-    this.saveSettings();
-  });
-}
 
-    
+    addIcon('mapmaking', mapmaking_icon)
+    addIcon('gameplay', gameplay_icon)
+    // ─── CORE MANAGERS ───────────────────────────────────────────────────
     this.backupManager = new BackupManager(this.app);
-
     this.fileCacheManager = new ToolkitFileCacheManager(
       this.app.vault,
       this.settings.fileCache ?? {},
       async () => await this.saveSettings()
     );
 
-
-      const origError = console.error.bind(console);
-  console.error = (msg?: any, ...rest: any[]) => {
-    if (
-      typeof msg === "string" &&
-      msg.includes("Cannot index file") &&
-      msg.includes("Dataview")
-    ) {
-      return;
-    }
-    origError(msg, ...rest);
-  };
-
+    // ─── SETTINGS UI ────────────────────────────────────────────────────
     this.settingsTab = new ToolkitSettingsTab(this.app, this);
     this.addSettingTab(this.settingsTab);
 
-    // Immediately load any cached manifest.json. If not present, we'll fetch in a moment.
-    if (this.settings.isFirstRun !== "yes") {
+    // sidebars
+    this.registerView(SIDEBAR_VIEW_TYPE, (leaf) => new SidebarTemplatesView(leaf));
+    this.registerView(GAMEPLAY_VIEW_TYPE, (leaf) => new GameplaySidebarView(leaf));
+    this.addCommand({
+      id: "open-templates-sidebar",
+      name: "Open Templates Sidebar",
+      icon: "mapmaking",
+      callback: async () => {
+        let leaf: WorkspaceLeaf | undefined | null =
+          this.app.workspace.getLeavesOfType(SIDEBAR_VIEW_TYPE)[0];
+        if (!leaf) {
+          leaf =
+            this.app.workspace.getRightLeaf(false) ??
+            this.app.workspace.getRightLeaf(true);
+        }
+        if (!leaf) {
+          new Notice("❌ Could not open Templates sidebar");
+          return;
+        }
+        await leaf.setViewState({ type: SIDEBAR_VIEW_TYPE, active: true });
+        this.app.workspace.revealLeaf(leaf);
+      },
+    });
+    this.addCommand({
+      id: "open-gameplay-sidebar",
+      name: "Open Gameplay Sidebar",
+      icon: "gameplay",
+      callback: async () => {
+        let leaf: WorkspaceLeaf | undefined | null =
+          this.app.workspace.getLeavesOfType(GAMEPLAY_VIEW_TYPE)[0];
+        if (!leaf) {
+          leaf =
+            this.app.workspace.getRightLeaf(false) ??
+            this.app.workspace.getRightLeaf(true);
+        }
+        if (!leaf) {
+          new Notice("❌ Could not open Gameplay sidebar");
+          return;
+        }
+        await leaf.setViewState({ type: GAMEPLAY_VIEW_TYPE, active: true });
+        this.app.workspace.revealLeaf(leaf);
+      },
+    });
+
+    this.addRibbonIcon('scroll-text', 'VVunderlore Sidebars', async () => {
+      await this.openSidebar(SIDEBAR_VIEW_TYPE, 'right');
+      await this.openSidebar(GAMEPLAY_VIEW_TYPE, 'right');
+    });
+
+
+    // ─── RESTORE STATE ──────────────────────────────────────────────────
+    if (this.settings.isFirstRun !== 'yes') {
       try {
         const content = await this.app.vault.adapter.read('manifest.json');
         this.manifestCache = JSON.parse(content);
-      } catch (err) {
-        console.warn('Manifest not found in vault; will fetch from GitHub shortly.');
-      }
+      } catch { }
     }
-    
-    // If highlighting was ON before, restore it now:
-	if (this.settings.highlightEnabled ) {
-		this.enableHighlight();
-	  }
+    //  • Highlight nav items if enabled
+    if (this.settings.highlightEnabled) this.enableHighlight();
 
-    // Defer heavier tasks slightly so UI isn’t blocked:
+    // ─── DEFER HEAVY TASKS ───────────────────────────────────────────────
     setTimeout(async () => {
       await this.syncManifest();
       await this.showIndexingModal();
       await this.checkForUpdates();
 
-      // Build reverse cache for “moved” detection
-      this.oldPathsByGithub = Object.entries(
-        this.fileCacheManager.getCache() as Record<string, ToolkitFileCacheEntry>
-      ).reduce((map, [vaultPath, entry]) => {
-        map[entry.githubPath] = vaultPath;
-        return map;
-      }, {} as Record<string, string>);
-
-    }, 250);
-
-    this.scheduleAutoUpdateCheck();
-
-  this.registerEvent(
-    this.app.vault.on("delete", () =>
-    (this.app as any).commands.executeCommandById("dataview:clear-cache")    )
-  );
-  this.registerEvent(
-    this.app.vault.on("rename", () =>
-      (this.app as any).commands.executeCommandById("dataview:clear-cache")
-    )
-  );
-
-    // Defensive: ensure settings.customPaths exists
-    if (!this.settings.customPaths) {
-      this.settings.customPaths = [];
-    }
-
-    // Build the requiresGraph from manifest.json
-    if (this.settings.isFirstRun !== "yes") {
+      // build your requiresGraph from manifest.json
       try {
         const raw = await this.app.vault.adapter.read('manifest.json');
-        const manifest = JSON.parse(raw) as {
-          files: Array<{ key: string; requires?: string[] }>;
-          folders: Array<{ key: string; requires?: string[] }>;
-        };
+        const manifest = JSON.parse(raw);
         const entries = [...(manifest.folders || []), ...(manifest.files || [])];
-        this.requiresGraph = new Map<string, string[]>();
-        for (const e of entries) {
-          this.requiresGraph.set(e.key, e.requires ?? []);
-        }
-      } catch (e) {
-        console.warn('Could not build requiresGraph (manifest.json missing or invalid).');
+        this.requiresGraph = new Map(entries.map(e => [e.key, e.requires || []]));
+      } catch {
         this.requiresGraph = new Map();
       }
-    } else {
-      this.requiresGraph = new Map(); // empty graph on first run
-    }
-    if (this.isFirstRun) {
+    }, 250);
+
+    // ─── AUTO-UPDATE TIMER & EVENTS ─────────────────────────────────────
+    this.scheduleAutoUpdateCheck();
+    this.registerEvent(
+      this.app.vault.on('delete', () =>
+        this.registerEvent(
+          this.app.vault.on('delete', () =>
+            (this.app as any).commands.executeCommandById('dataview:clear-cache')
+          )
+        )));
+    this.registerEvent(
+      this.app.vault.on('rename', () =>
+        (this.app as any).commands.executeCommandById('dataview:clear-cache')
+      )
+    );
+
+    // ─── FIRST-RUN “Welcome.md” ─────────────────────────────────────────
+    if (this.settings.isFirstRun === 'no') {
       this.app.workspace.onLayoutReady(() => {
-        try {
-          this.app.workspace.detachLeavesOfType("settings");
-
-          const welcome = this.app.vault.getAbstractFileByPath("Welcome.md");
-          if (welcome instanceof TFile) {
-            this.app.workspace.getLeaf(true).openFile(welcome);
-
-          }
-        } catch (err) {
-          console.error("❌ Failed to open Welcome.md:", err);
+        const welcome = this.app.vault.getAbstractFileByPath('Welcome.md');
+        if (welcome instanceof TFile) {
+          this.app.workspace.detachLeavesOfType('settings');
+          this.app.workspace.getLeaf(true).openFile(welcome);
         }
+        // mark shown
+        this.settings.isFirstRun = 'shown';
+        this.saveSettings();
       });
     }
   }
 
+
   onunload() {
     this.disableHighlight();
-    if (this.autoCheckInterval) {
-      clearInterval(this.autoCheckInterval);
-    }
-  } 
+    this.app.workspace.detachLeavesOfType(SIDEBAR_VIEW_TYPE);
+    if (this.autoCheckInterval) clearInterval(this.autoCheckInterval);
+  }
 
   scheduleAutoUpdateCheck() {
     this.autoCheckInterval = window.setInterval(() => {
       this.checkForUpdates();
     }, 60 * 60 * 1000);
+  }
+
+  public async activateTemplatesSidebar(): Promise<void> {
+    // Close any open sidebar of our view type
+    this.app.workspace.detachLeavesOfType(SIDEBAR_VIEW_TYPE);
+
+    // Open a new one on the left
+    await this.app.workspace.getLeftLeaf(false)!
+      .setViewState({ type: SIDEBAR_VIEW_TYPE, active: true });
+  }
+
+  private async openSidebar(viewType: string, side: 'left' | 'right'): Promise<void> {
+    const ws = this.app.workspace;
+    const existing = ws.getLeavesOfType(viewType)[0];
+    if (existing) {
+      await existing.setViewState({ type: viewType, active: true });
+      ws.revealLeaf(existing);
+      return;
+    }
+    const leaf = side === 'left' ? ws.getLeftLeaf(false) ?? ws.getLeftLeaf(true)
+      : ws.getRightLeaf(false) ?? ws.getRightLeaf(true);
+    if (!leaf) {
+      new Notice(`❌ Could not open ${viewType} sidebar`);
+      return;
+    }
+    await leaf.setViewState({ type: viewType, active: true });
+    ws.revealLeaf(leaf);
   }
 
   // ─── BACKUP & UNDO ────────────────────────────────────────────────────
@@ -640,369 +753,369 @@ private async checkMarkerFile() {
     for (const entry of this.manifestCache.files) {
       // ── SKIP any optional:true file
       if (entry.optional) {
-      continue;
+        continue;
       }
 
       const custom = this.settings.customPaths.find((c) => c.manifestKey === entry.key);
       const isInDenyFolder = denyListedFolders.some((folder) =>
-      entry.path.startsWith(folder + '/')
+        entry.path.startsWith(folder + '/')
       );
       if (custom?.doUpdate === false || isInDenyFolder) {
-      // Resolve vault path (accounting for any remapping)
-      const vp = custom?.vaultPath ?? this.resolveVaultPath(entry.path);
+        // Resolve vault path (accounting for any remapping)
+        const vp = custom?.vaultPath ?? this.resolveVaultPath(entry.path);
 
-      // Check: does the file exist locally? And is it up-to-date?
-      const exists = await this.app.vault.adapter.exists(vp);
-      const upToDate = exists && (await this.fileCacheManager.isUpToDate(vp));
+        // Check: does the file exist locally? And is it up-to-date?
+        const exists = await this.app.vault.adapter.exists(vp);
+        const upToDate = exists && (await this.fileCacheManager.isUpToDate(vp));
 
-      // Only show as deny-listed if it would have been “new” (missing) or “out-of-date”
-      if (!exists || !upToDate) {
-        previewList.push({
-        filePath: vp,
-        action: 'deny-listed – will not update',
-        selected: false,
-        });
-      }
+        // Only show as deny-listed if it would have been “new” (missing) or “out-of-date”
+        if (!exists || !upToDate) {
+          previewList.push({
+            filePath: vp,
+            action: 'deny-listed – will not update',
+            selected: false,
+          });
+        }
       }
     }
 
-	// 2) FULL-SYNC mode (skip any file/folder that is blacklisted)
-	if (!this.settings.customizeUpdates) {
-	  for (const f of this.manifestCache.files) {
-		// ── SKIP any optional:true file
-		if (f.optional) {
-		  continue;
-		}
+    // 2) FULL-SYNC mode (skip any file/folder that is blacklisted)
+    if (!this.settings.customizeUpdates) {
+      for (const f of this.manifestCache.files) {
+        // ── SKIP any optional:true file
+        if (f.optional) {
+          continue;
+        }
 
-		const custom = this.settings.customPaths.find((c) => c.manifestKey === f.key);
-		const isInDenyFolder = denyListedFolders.some((folder) =>
-		  f.path.startsWith(folder + '/')
-		);
-		if (custom?.doUpdate === false || isInDenyFolder) {
-		  continue;
-		}
+        const custom = this.settings.customPaths.find((c) => c.manifestKey === f.key);
+        const isInDenyFolder = denyListedFolders.some((folder) =>
+          f.path.startsWith(folder + '/')
+        );
+        if (custom?.doUpdate === false || isInDenyFolder) {
+          continue;
+        }
 
-		const vp = this.resolveVaultPath(f.path);
-		let tag = '';
-		if (vp !== f.path) tag = ' (remapped)';
+        const vp = this.resolveVaultPath(f.path);
+        let tag = '';
+        if (vp !== f.path) tag = ' (remapped)';
 
-		const exists = await this.app.vault.adapter.exists(vp);
-		if (!exists) {
-		  previewList.push({
-			filePath: vp,
-			action: `new file${tag}`,
-			selected: true,
-		  });
-		} else if (!(await this.fileCacheManager.isUpToDate(vp))) {
-		  previewList.push({
-			filePath: vp,
-			action: `will be overwritten${tag}`,
-			selected: true,
-		  });
-		}
-	  }
-
-	  for (const fld of this.manifestCache.folders) {
-		// ── SKIP any optional:true folder
-		if (fld.optional) {
-		  continue;
-		}
-
-		const isDenyFolder = denyListedFolders.includes(fld.path);
-		if (!(await this.app.vault.adapter.exists(fld.path)) && !isDenyFolder) {
-		  previewList.push({
-			filePath: fld.path,
-			action: 'missing folder (will be created)',
-			selected: true,
-			isFolder: true,
-		  });
-		}
-	  }
-
-	  return previewList;
-	}
-
-	// 3) CUSTOM-SYNC mode (skip any file/folder that is blacklisted)
-	for (const entry of this.manifestCache.files) {
-	  // ── SKIP any optional:true file
-	  if (entry.optional) {
-		continue;
-	  }
-
-	  const custom = this.settings.customPaths.find((c) => c.manifestKey === entry.key);
-	  const isInDenyFolder = denyListedFolders.some((folder) =>
-		entry.path.startsWith(folder + '/')
-	  );
-	  if (custom?.doUpdate === false || isInDenyFolder) {
-		continue;
-	  }
-
-	  const vaultPath = custom?.vaultPath ?? this.resolveVaultPath(entry.path);
-	  const exists = await this.app.vault.adapter.exists(vaultPath);
-	  const upToDate = exists && (await this.fileCacheManager.isUpToDate(vaultPath));
-
-	  let tag = '';
-	  if (vaultPath !== entry.path) tag = ' (remapped)';
-
-	  if (!exists) {
-		previewList.push({
-		  filePath: vaultPath,
-		  action: `new file${tag}`,
-		  selected: true,
-		});
-	  } else if (!upToDate) {
-		previewList.push({
-		  filePath: vaultPath,
-		  action: `will be overwritten${tag}`,
-		  selected: true,
-		});
-	  }
-	}
-
-	for (const entry of this.manifestCache.folders) {
-	  // ── SKIP any optional:true folder
-	  if (entry.optional) {
-		continue;
-	  }
-
-	  const isDenyFolder = denyListedFolders.includes(entry.path);
-	  if (!(await this.app.vault.adapter.exists(entry.path)) && !isDenyFolder) {
-		previewList.push({
-		  filePath: entry.path,
-		  action: 'missing folder (will be created)',
-		  selected: true,
-		  isFolder: true,
-		});
-	  }
-	}
-
-	// 3c) “Moved” detection (skip blacklisted)
-	for (const f of this.manifestCache.files) {
-	  // ── SKIP any optional:true file
-	  if (f.optional) {
-		continue;
-	  }
-
-	  const manifestKey = f.key;
-	  const manifestPath = f.path;
-	  const custom = this.settings.customPaths.find((c) => c.manifestKey === manifestKey);
-	  const prevPath = this.oldPathsByGithub[manifestPath];
-
-	  const isInDenyFolder = denyListedFolders.some((folder) =>
-		manifestPath.startsWith(folder + '/')
-	  );
-	  if (custom?.doUpdate === false || isInDenyFolder) {
-		continue;
-	  }
-	  if (custom && custom.vaultPath && custom.vaultPath !== manifestPath) {
-		continue;
-	  }
-	  if (
-		prevPath &&
-		prevPath !== manifestPath &&
-		(!custom || custom.vaultPath === manifestPath)
-	  ) {
-		previewList.push({
-		  filePath: prevPath,
-		  action: `moved → ${manifestPath}`,
-		  selected: true,
-		});
-	  }
-	}
-
-	return previewList;
-  }
-
-  
-  
-  
-  async forceUpdatePreviewAndConfirm() {
-	// 1) Build the flat list of PreviewItem objects
-	const previewList = await this.buildForceUpdatePreview();
-  
-	// 2) Split the items into “deny-listed” vs. “normal” items
-	//    (buildForceUpdatePreview uses action = 'deny-listed – will not update')
-	const denyItems: PreviewItem[] = [];
-	const normalItems: PreviewItem[] = [];
-	for (const item of previewList) {
-	  if (item.action.startsWith('deny-listed')) {
-		denyItems.push(item);
-	  } else {
-		normalItems.push(item);
-	  }
-	}
-  
-	// 3) Create and open the modal with both lists
-	const modal = new (class extends Modal {
-	  plugin: VVunderloreToolkitPlugin;
-	  normal: PreviewItem[];
-	  denied: PreviewItem[];
-  
-	  constructor(app: App, normal: PreviewItem[], denied: PreviewItem[]) {
-		super(app);
-		this.normal = normal;
-		this.denied = denied;
-	  }
-  
-	  onOpen() {
-		// Prevent clicks from closing anything behind
-		this.contentEl.addEventListener('click', (e) => e.stopPropagation());
-		this.contentEl.empty();
-		this.titleEl.setText('Force Update Preview');
-  
-		// Intro paragraph
-		this.contentEl.createEl('p', {
-		  text:
-			'The following items will be updated. Uncheck any items you do NOT want to change, then click "Confirm and Update".',
-		});
-  
-		// 4) Render “normal” (non-deny) items with checkboxes
-		if (this.normal.length) {
-		  const normalContainer = this.contentEl.createEl('div');
-		  Object.assign(normalContainer.style, {
-			maxHeight: '300px',
-			overflowY: 'auto',
-			marginTop: '1em',
-		  });
-  
-		  this.normal.forEach((item) => {
-			const row = normalContainer.createDiv();
-			Object.assign(row.style, {
-			  display: 'flex',
-			  alignItems: 'flex-start',
-			  justifyContent: 'space-between',
-			  padding: '6px 0',
-			  fontFamily: 'monospace',
-			});
-  
-			// Left: file path + action note
-			const label = row.createDiv();
-      label.addClass("forceupdate-flexcolumn");
-  
-			const labelWrapper = label.createDiv();
-			labelWrapper.textContent = item.filePath;
-  
-			const note = label.createDiv({ text: item.action });
-			note.addClass("forceupdate-note");
-  
-			// Right: checkbox
-			const checkbox = row.createEl('input', { type: 'checkbox' });
-			checkbox.checked = item.selected;
-			checkbox.onchange = () => {
-			  item.selected = checkbox.checked;
-			};
-		  });
-		} else {
-			const noCandidates = this.contentEl.createEl('div');
-			Object.assign(noCandidates.style, {
-			  display: 'inline-block',
-			  fontFamily: 'monospace',
-			  fontStyle: 'italic',
-			  marginTop: '0.5em',
-			});
-			noCandidates.textContent = 'No force-update candidates.';
-		}
-  
-		// 5) Render “deny-listed” items inside a collapsed <details>
-		if (this.denied.length) {
-		  const denyDetails = this.contentEl.createEl('details', { cls: 'vk-section' });
-		  denyDetails.open = false;
-  
-		  const summary = denyDetails.createEl('summary', { cls: 'vk-section-header' });
-		  Object.assign(summary.style, {
-			cursor: 'pointer',
-			display: 'flex',
-			color: 'var(--text-faint)',
-			alignItems: 'center',
-			gap: '0.5em',
-			marginTop: '1em',
-		  });
-		  summary.createEl('span', { text: `Deny-List Files (${this.denied.length})` });
-  
-		  // Rotating “VV” icon on expand/collapse
-		  const toggleIcon = summary.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
-		  Object.assign(toggleIcon.style, {
-			fontWeight: 'bold',
-			display: 'inline-block',
-			transition: 'transform 0.2s ease',
-			transformOrigin: '50% 50%',
-			userSelect: 'none',
-			transform: 'rotate(180deg)',
-		  });
-		  denyDetails.ontoggle = () => {
-			toggleIcon.toggleClass("vv-rotated", !denyDetails.open);
-		  };
-  
-		  // Body of <details> — each deny-listed item is faint and disabled
-		  const denyBody = denyDetails.createDiv({ cls: 'vk-section-body' });
-		  denyBody.addClass("denylist");
-  
-		  this.denied.forEach((item) => {
-			const row = denyBody.createDiv();
-			Object.assign(row.style, {
-			  display: 'flex',
-			  alignItems: 'flex-start',
-			  justifyContent: 'space-between',
-			  padding: '6px 0',
-			  fontFamily: 'monospace',
-			  color: 'var(--text-faint)',
-			  fontStyle: 'italic',
-			});
-  
-			const labelWrapper = row.createDiv();
-			labelWrapper.textContent = item.filePath;
-			labelWrapper.addClass("forceupdate-labelwrapper");
-  
-			const note = row.createDiv({ text: item.action });
-			note.addClass("forceupdate-note-b");
-  
-			// Deny-listed checkbox is disabled
-			const checkbox = row.createEl('input', { type: 'checkbox' });
-			checkbox.checked = item.selected;
-			checkbox.disabled = true;
-			checkbox.title = 'This item is deny-listed';
-		  });
-		}
-
-    if (this.plugin.settings.reparseGamesets) {
-        this.contentEl
-          .createDiv({ cls: 'mod-aux-text' })
-          .setText('🔄 Refreshing Gameset Data');
+        const exists = await this.app.vault.adapter.exists(vp);
+        if (!exists) {
+          previewList.push({
+            filePath: vp,
+            action: `new file${tag}`,
+            selected: true,
+          });
+        } else if (!(await this.fileCacheManager.isUpToDate(vp))) {
+          previewList.push({
+            filePath: vp,
+            action: `will be overwritten${tag}`,
+            selected: true,
+          });
+        }
       }
 
-		// 6) Buttons at the bottom
-		const buttonRow = this.contentEl.createEl('div');
-		Object.assign(buttonRow.style, {
-		  display: 'flex',
-		  justifyContent: 'flex-end',
-		  gap: '0.5em',
-		  marginTop: '1.5em',
-		});
-  
-		const cancelBtn = buttonRow.createEl('button', { text: 'Cancel' });
-		cancelBtn.onclick = () => this.close();
-  
-		const confirmBtn = buttonRow.createEl('button', {
-		  text: 'Confirm and Update',
-		  cls: 'mod-cta',
-		});
-		confirmBtn.onclick = async () => {
-		  this.close();
-		  // Pass everything into performForceUpdateWithSelection; deny-listed items will be skipped
-		  await this.plugin.performForceUpdateWithSelection([...this.normal, ...this.denied]);
-		};
-	  }
-  
-	  onClose() {
-		this.contentEl.empty();
-	  }
-	})(this.app, normalItems, denyItems);
-  
-	// Attach plugin pointer and open
-	(modal as any).plugin = this;
-	modal.open();
+      for (const fld of this.manifestCache.folders) {
+        // ── SKIP any optional:true folder
+        if (fld.optional) {
+          continue;
+        }
+
+        const isDenyFolder = denyListedFolders.includes(fld.path);
+        if (!(await this.app.vault.adapter.exists(fld.path)) && !isDenyFolder) {
+          previewList.push({
+            filePath: fld.path,
+            action: 'missing folder (will be created)',
+            selected: true,
+            isFolder: true,
+          });
+        }
+      }
+
+      return previewList;
+    }
+
+    // 3) CUSTOM-SYNC mode (skip any file/folder that is blacklisted)
+    for (const entry of this.manifestCache.files) {
+      // ── SKIP any optional:true file
+      if (entry.optional) {
+        continue;
+      }
+
+      const custom = this.settings.customPaths.find((c) => c.manifestKey === entry.key);
+      const isInDenyFolder = denyListedFolders.some((folder) =>
+        entry.path.startsWith(folder + '/')
+      );
+      if (custom?.doUpdate === false || isInDenyFolder) {
+        continue;
+      }
+
+      const vaultPath = custom?.vaultPath ?? this.resolveVaultPath(entry.path);
+      const exists = await this.app.vault.adapter.exists(vaultPath);
+      const upToDate = exists && (await this.fileCacheManager.isUpToDate(vaultPath));
+
+      let tag = '';
+      if (vaultPath !== entry.path) tag = ' (remapped)';
+
+      if (!exists) {
+        previewList.push({
+          filePath: vaultPath,
+          action: `new file${tag}`,
+          selected: true,
+        });
+      } else if (!upToDate) {
+        previewList.push({
+          filePath: vaultPath,
+          action: `will be overwritten${tag}`,
+          selected: true,
+        });
+      }
+    }
+
+    for (const entry of this.manifestCache.folders) {
+      // ── SKIP any optional:true folder
+      if (entry.optional) {
+        continue;
+      }
+
+      const isDenyFolder = denyListedFolders.includes(entry.path);
+      if (!(await this.app.vault.adapter.exists(entry.path)) && !isDenyFolder) {
+        previewList.push({
+          filePath: entry.path,
+          action: 'missing folder (will be created)',
+          selected: true,
+          isFolder: true,
+        });
+      }
+    }
+
+    // 3c) “Moved” detection (skip blacklisted)
+    for (const f of this.manifestCache.files) {
+      // ── SKIP any optional:true file
+      if (f.optional) {
+        continue;
+      }
+
+      const manifestKey = f.key;
+      const manifestPath = f.path;
+      const custom = this.settings.customPaths.find((c) => c.manifestKey === manifestKey);
+      const prevPath = this.oldPathsByGithub[manifestPath];
+
+      const isInDenyFolder = denyListedFolders.some((folder) =>
+        manifestPath.startsWith(folder + '/')
+      );
+      if (custom?.doUpdate === false || isInDenyFolder) {
+        continue;
+      }
+      if (custom && custom.vaultPath && custom.vaultPath !== manifestPath) {
+        continue;
+      }
+      if (
+        prevPath &&
+        prevPath !== manifestPath &&
+        (!custom || custom.vaultPath === manifestPath)
+      ) {
+        previewList.push({
+          filePath: prevPath,
+          action: `moved → ${manifestPath}`,
+          selected: true,
+        });
+      }
+    }
+
+    return previewList;
   }
-  
+
+
+
+
+  async forceUpdatePreviewAndConfirm() {
+    // 1) Build the flat list of PreviewItem objects
+    const previewList = await this.buildForceUpdatePreview();
+
+    // 2) Split the items into “deny-listed” vs. “normal” items
+    //    (buildForceUpdatePreview uses action = 'deny-listed – will not update')
+    const denyItems: PreviewItem[] = [];
+    const normalItems: PreviewItem[] = [];
+    for (const item of previewList) {
+      if (item.action.startsWith('deny-listed')) {
+        denyItems.push(item);
+      } else {
+        normalItems.push(item);
+      }
+    }
+
+    // 3) Create and open the modal with both lists
+    const modal = new (class extends Modal {
+      plugin: VVunderloreToolkitPlugin;
+      normal: PreviewItem[];
+      denied: PreviewItem[];
+
+      constructor(app: App, normal: PreviewItem[], denied: PreviewItem[]) {
+        super(app);
+        this.normal = normal;
+        this.denied = denied;
+      }
+
+      onOpen() {
+        // Prevent clicks from closing anything behind
+        this.contentEl.addEventListener('click', (e) => e.stopPropagation());
+        this.contentEl.empty();
+        this.titleEl.setText('Force Update Preview');
+
+        // Intro paragraph
+        this.contentEl.createEl('p', {
+          text:
+            'The following items will be updated. Uncheck any items you do NOT want to change, then click "Confirm and Update".',
+        });
+
+        // 4) Render “normal” (non-deny) items with checkboxes
+        if (this.normal.length) {
+          const normalContainer = this.contentEl.createEl('div');
+          Object.assign(normalContainer.style, {
+            maxHeight: '300px',
+            overflowY: 'auto',
+            marginTop: '1em',
+          });
+
+          this.normal.forEach((item) => {
+            const row = normalContainer.createDiv();
+            Object.assign(row.style, {
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              padding: '6px 0',
+              fontFamily: 'monospace',
+            });
+
+            // Left: file path + action note
+            const label = row.createDiv();
+            label.addClass("forceupdate-flexcolumn");
+
+            const labelWrapper = label.createDiv();
+            labelWrapper.textContent = item.filePath;
+
+            const note = label.createDiv({ text: item.action });
+            note.addClass("forceupdate-note");
+
+            // Right: checkbox
+            const checkbox = row.createEl('input', { type: 'checkbox' });
+            checkbox.checked = item.selected;
+            checkbox.onchange = () => {
+              item.selected = checkbox.checked;
+            };
+          });
+        } else {
+          const noCandidates = this.contentEl.createEl('div');
+          Object.assign(noCandidates.style, {
+            display: 'inline-block',
+            fontFamily: 'monospace',
+            fontStyle: 'italic',
+            marginTop: '0.5em',
+          });
+          noCandidates.textContent = 'No force-update candidates.';
+        }
+
+        // 5) Render “deny-listed” items inside a collapsed <details>
+        if (this.denied.length) {
+          const denyDetails = this.contentEl.createEl('details', { cls: 'vk-section' });
+          denyDetails.open = false;
+
+          const summary = denyDetails.createEl('summary', { cls: 'vk-section-header' });
+          Object.assign(summary.style, {
+            cursor: 'pointer',
+            display: 'flex',
+            color: 'var(--text-faint)',
+            alignItems: 'center',
+            gap: '0.5em',
+            marginTop: '1em',
+          });
+          summary.createEl('span', { text: `Deny-List Files (${this.denied.length})` });
+
+          // Rotating “VV” icon on expand/collapse
+          const toggleIcon = summary.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
+          Object.assign(toggleIcon.style, {
+            fontWeight: 'bold',
+            display: 'inline-block',
+            transition: 'transform 0.2s ease',
+            transformOrigin: '50% 50%',
+            userSelect: 'none',
+            transform: 'rotate(180deg)',
+          });
+          denyDetails.ontoggle = () => {
+            toggleIcon.toggleClass("vv-rotated", !denyDetails.open);
+          };
+
+          // Body of <details> — each deny-listed item is faint and disabled
+          const denyBody = denyDetails.createDiv({ cls: 'vk-section-body' });
+          denyBody.addClass("denylist");
+
+          this.denied.forEach((item) => {
+            const row = denyBody.createDiv();
+            Object.assign(row.style, {
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              padding: '6px 0',
+              fontFamily: 'monospace',
+              color: 'var(--text-faint)',
+              fontStyle: 'italic',
+            });
+
+            const labelWrapper = row.createDiv();
+            labelWrapper.textContent = item.filePath;
+            labelWrapper.addClass("forceupdate-labelwrapper");
+
+            const note = row.createDiv({ text: item.action });
+            note.addClass("forceupdate-note-b");
+
+            // Deny-listed checkbox is disabled
+            const checkbox = row.createEl('input', { type: 'checkbox' });
+            checkbox.checked = item.selected;
+            checkbox.disabled = true;
+            checkbox.title = 'This item is deny-listed';
+          });
+        }
+
+        if (this.plugin.settings.reparseGamesets) {
+          this.contentEl
+            .createDiv({ cls: 'mod-aux-text' })
+            .setText('🔄 Refreshing Gameset Data');
+        }
+
+        // 6) Buttons at the bottom
+        const buttonRow = this.contentEl.createEl('div');
+        Object.assign(buttonRow.style, {
+          display: 'flex',
+          justifyContent: 'flex-end',
+          gap: '0.5em',
+          marginTop: '1.5em',
+        });
+
+        const cancelBtn = buttonRow.createEl('button', { text: 'Cancel' });
+        cancelBtn.onclick = () => this.close();
+
+        const confirmBtn = buttonRow.createEl('button', {
+          text: 'Confirm and Update',
+          cls: 'mod-cta',
+        });
+        confirmBtn.onclick = async () => {
+          this.close();
+          // Pass everything into performForceUpdateWithSelection; deny-listed items will be skipped
+          await this.plugin.performForceUpdateWithSelection([...this.normal, ...this.denied]);
+        };
+      }
+
+      onClose() {
+        this.contentEl.empty();
+      }
+    })(this.app, normalItems, denyItems);
+
+    // Attach plugin pointer and open
+    (modal as any).plugin = this;
+    modal.open();
+  }
+
 
   async updateEntryFromManifest(entry: ManifestFileEntry, force: boolean = false) {
     const custom = this.settings.customPaths.find((c) => c.manifestKey === entry.key);
@@ -1072,10 +1185,10 @@ private async checkMarkerFile() {
 
       new Notice('✅ Toolkit force‐updated with your selections.');
 
-          if (this.settings.reparseGamesets) {
-      new Notice('🔄 Refreshing Game Set Data…');
-      await this.refreshGameSetData();
-    }
+      if (this.settings.reparseGamesets) {
+        new Notice('🔄 Refreshing Game Set Data…');
+        await this.refreshGameSetData();
+      }
 
       if (this.settingsTab) {
         await this.settingsTab.updateVersionDisplay();
@@ -1177,308 +1290,308 @@ private async checkMarkerFile() {
   // ─── PREVIEW + REMOTE-BASELINE + DIFF ─────────────────────────────────
 
   async previewUpdatesModal() {
-	// “Loading…” placeholder while syncing
-	const loading = new (class extends Modal {
-	  constructor(app: App) {
-		super(app);
-	  }
-	  onOpen() {
-		this.contentEl.empty();
-		this.contentEl
-		  .createDiv({
-			text: '🔄 Checking for updates…',
-			cls: 'mod-warning',
-		  })
-		  .addEventListener('click', (e) => e.stopPropagation());
-	  }
-	})(this.app);
-  
-	loading.open();
-	await this.syncManifest();
-	await this.fetchRemoteBaseline();
-	// buildUpdatePreview() now returns only “real” diffs (no stale deny‐list)
-	const diffs = await this.buildUpdatePreview();
-	loading.close();
-  
-	// Split out deny‐listed lines vs. everything else
-	const denyListedLines: string[] = [];
-	const normalLines: string[] = [];
-  
-	for (const d of diffs) {
-	  if (d.startsWith('❌ deny‐listed')) {
-		denyListedLines.push(d);
-	  } else {
-		normalLines.push(d);
-	  }
-	}
-  
-	// Now create the modal
-	const modal = new (class extends Modal {
-	  plugin: VVunderloreToolkitPlugin;
-	  normal: string[];
-	  denied: string[];
-  
-	  constructor(app: App, normal: string[], denied: string[]) {
-		super(app);
-		this.normal = normal;
-		this.denied = denied;
-	  }
-  
-	  onOpen() {
-		this.contentEl.empty();
-		this.titleEl.setText('Update Preview');
-  
-		// Intro paragraph
-		this.contentEl.createEl('p', {
-		  text: 'Only files whose contents differ from GitHub will be updated:',
-		});
-  
-		// 1) If there are any “normal” diffs, render them in a bullet list
-		if (this.normal.length) {
-		  const ul = this.contentEl.createEl('ul');
-		  this.normal.forEach((line) => {
-			const li = ul.createEl('li', { text: line });
-			// No special styling for these; they show up normally.
-		  });
-		} else {
-		  // If no normal diffs, say “Up to date”
-		  this.contentEl.createEl('div', {
-			text: '✅ Everything is already up to date!',
-			cls: 'mod-info',
-		  });
-		}
-  
-		// 2) If there are any deny‐listed lines, tuck them into a <details> block
-		if (this.denied.length) {
-		  const denyDetails = this.contentEl.createEl('details', { cls: 'vk-section' });
-		  // Always start collapsed by default
-		  denyDetails.open = false;
-  
-		  // Summary line: shows “Deny‐List Files (n)”
-		  const summary = denyDetails.createEl('summary', { cls: 'vk-section-header' });
-		  Object.assign(summary.style, {
-			cursor: 'pointer',
-			display: 'flex',
-			color: 'var(--text-faint)',
-			alignItems: 'center',
-			gap: '0.5em',
-		  });
-		  summary.createEl('span', { text: `Deny‐List Files (${this.denied.length})` });
-  
-		  // Right‐side icon rotating on expand/collapse
-		  const toggleIcon = summary.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
-		  Object.assign(toggleIcon.style, {
-			fontWeight: 'bold',
-			display: 'inline-block',
-			transition: 'transform 0.2s ease',
-			transformOrigin: '50% 50%',
-			userSelect: 'none',
-			transform: 'rotate(180deg)',
-		  });
-		  denyDetails.ontoggle = () => {
-			  toggleIcon.toggleClass("vv-rotated", !denyDetails.open);
-		  };
-  
-		  // Body of the details: a simple <ul> containing only deny‐listed lines
-		  const denyBody = denyDetails.createDiv({ cls: 'vk-section-body' });
-		  denyBody.addClass("denylist");
-		  const denyUl = denyBody.createEl('ul');
-		  this.denied.forEach((line) => {
-			const li = denyUl.createEl('li', { text: line });
-			li.addClass("forceupdate-note-c");
-		  });
-		}
-   
-		const buttonRow = this.contentEl.createEl('div');
-		Object.assign(buttonRow.style, {
-		  display: 'flex',
-		  justifyContent: 'flex-end',
-		  marginTop: '1.25em',       // tweak spacing as you like
-		});
-		
-		// “Confirm & Update” button
-		const confirmBtn = buttonRow.createEl('button', {
-		  text: 'Confirm & Update',
-		  cls: 'mod-cta',
-		});
-		confirmBtn.onclick = async () => {
-		  await (this as any).plugin.updateSelectedToolkitContent();
-		  this.close();
-		};
-		
-		// “Cancel” button
-		const cancelBtn = buttonRow.createEl('button', { text: 'Cancel' });
-		cancelBtn.onclick = () => this.close();
-	  }
-  
-	  onClose() {
-		this.contentEl.empty();
-	  }
-	})(this.app, normalLines, denyListedLines);
-  
-	// Attach plugin pointer and open
-	(modal as any).plugin = this;
-	modal.open();
+    // “Loading…” placeholder while syncing
+    const loading = new (class extends Modal {
+      constructor(app: App) {
+        super(app);
+      }
+      onOpen() {
+        this.contentEl.empty();
+        this.contentEl
+          .createDiv({
+            text: '🔄 Checking for updates…',
+            cls: 'mod-warning',
+          })
+          .addEventListener('click', (e) => e.stopPropagation());
+      }
+    })(this.app);
+
+    loading.open();
+    await this.syncManifest();
+    await this.fetchRemoteBaseline();
+    // buildUpdatePreview() now returns only “real” diffs (no stale deny‐list)
+    const diffs = await this.buildUpdatePreview();
+    loading.close();
+
+    // Split out deny‐listed lines vs. everything else
+    const denyListedLines: string[] = [];
+    const normalLines: string[] = [];
+
+    for (const d of diffs) {
+      if (d.startsWith('❌ deny‐listed')) {
+        denyListedLines.push(d);
+      } else {
+        normalLines.push(d);
+      }
+    }
+
+    // Now create the modal
+    const modal = new (class extends Modal {
+      plugin: VVunderloreToolkitPlugin;
+      normal: string[];
+      denied: string[];
+
+      constructor(app: App, normal: string[], denied: string[]) {
+        super(app);
+        this.normal = normal;
+        this.denied = denied;
+      }
+
+      onOpen() {
+        this.contentEl.empty();
+        this.titleEl.setText('Update Preview');
+
+        // Intro paragraph
+        this.contentEl.createEl('p', {
+          text: 'Only files whose contents differ from GitHub will be updated:',
+        });
+
+        // 1) If there are any “normal” diffs, render them in a bullet list
+        if (this.normal.length) {
+          const ul = this.contentEl.createEl('ul');
+          this.normal.forEach((line) => {
+            const li = ul.createEl('li', { text: line });
+            // No special styling for these; they show up normally.
+          });
+        } else {
+          // If no normal diffs, say “Up to date”
+          this.contentEl.createEl('div', {
+            text: '✅ Everything is already up to date!',
+            cls: 'mod-info',
+          });
+        }
+
+        // 2) If there are any deny‐listed lines, tuck them into a <details> block
+        if (this.denied.length) {
+          const denyDetails = this.contentEl.createEl('details', { cls: 'vk-section' });
+          // Always start collapsed by default
+          denyDetails.open = false;
+
+          // Summary line: shows “Deny‐List Files (n)”
+          const summary = denyDetails.createEl('summary', { cls: 'vk-section-header' });
+          Object.assign(summary.style, {
+            cursor: 'pointer',
+            display: 'flex',
+            color: 'var(--text-faint)',
+            alignItems: 'center',
+            gap: '0.5em',
+          });
+          summary.createEl('span', { text: `Deny‐List Files (${this.denied.length})` });
+
+          // Right‐side icon rotating on expand/collapse
+          const toggleIcon = summary.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
+          Object.assign(toggleIcon.style, {
+            fontWeight: 'bold',
+            display: 'inline-block',
+            transition: 'transform 0.2s ease',
+            transformOrigin: '50% 50%',
+            userSelect: 'none',
+            transform: 'rotate(180deg)',
+          });
+          denyDetails.ontoggle = () => {
+            toggleIcon.toggleClass("vv-rotated", !denyDetails.open);
+          };
+
+          // Body of the details: a simple <ul> containing only deny‐listed lines
+          const denyBody = denyDetails.createDiv({ cls: 'vk-section-body' });
+          denyBody.addClass("denylist");
+          const denyUl = denyBody.createEl('ul');
+          this.denied.forEach((line) => {
+            const li = denyUl.createEl('li', { text: line });
+            li.addClass("forceupdate-note-c");
+          });
+        }
+
+        const buttonRow = this.contentEl.createEl('div');
+        Object.assign(buttonRow.style, {
+          display: 'flex',
+          justifyContent: 'flex-end',
+          marginTop: '1.25em',       // tweak spacing as you like
+        });
+
+        // “Confirm & Update” button
+        const confirmBtn = buttonRow.createEl('button', {
+          text: 'Confirm & Update',
+          cls: 'mod-cta',
+        });
+        confirmBtn.onclick = async () => {
+          await (this as any).plugin.updateSelectedToolkitContent();
+          this.close();
+        };
+
+        // “Cancel” button
+        const cancelBtn = buttonRow.createEl('button', { text: 'Cancel' });
+        cancelBtn.onclick = () => this.close();
+      }
+
+      onClose() {
+        this.contentEl.empty();
+      }
+    })(this.app, normalLines, denyListedLines);
+
+    // Attach plugin pointer and open
+    (modal as any).plugin = this;
+    modal.open();
   }
-  
+
 
   async buildUpdatePreview(): Promise<string[]> {
-	const changes: string[] = [];
-  
-	// 0) Collect all blacklisted folders (manifestKey values where doUpdate === false)
-	const denyListedFolders = this.settings.customPaths
-	  .filter((c) => c.doUpdate === false)
-	  .map((c) => c.manifestKey);
-  
-	// 1) Deny‐listed entries—but only if they’d actually be “new” (missing) or “out‐of‐date”
-	for (const f of this.manifestCache.files) {
-	  // ── SKIP any optional:true file
-	  if (f.optional) {
-		continue;
-	  }
-  
-	  const custom = this.settings.customPaths.find((c) => c.manifestKey === f.path);
-	  const isInDenyFolder = denyListedFolders.some((folder) =>
-		f.path.startsWith(folder + '/')
-	  );
-	  if (custom?.doUpdate === false || isInDenyFolder) {
-		// Resolve the vault path (handles remapping if present)
-		const vp = custom?.vaultPath ?? this.resolveVaultPath(f.path);
-  
-		// Check if file exists locally and if it’s up‐to‐date
-		const exists = await this.app.vault.adapter.exists(vp);
-		const upToDate = exists && (await this.fileCacheManager.isUpToDate(vp));
-  
-		// Only show a deny‐listed entry if it would otherwise be created or overwritten
-		if (!exists || !upToDate) {
-		  changes.push(`❌ deny‐listed – will not update: ${vp}`);
-		}
-	  }
-	}
-  
-	// 2) FULL‐SYNC mode (skip any file/folder that’s blacklisted)
-	if (!this.settings.customizeUpdates) {
-	  for (const f of this.manifestCache.files) {
-		// ── SKIP any optional:true file
-		if (f.optional) {
-		  continue;
-		}
-  
-		const custom = this.settings.customPaths.find((c) => c.manifestKey === f.path);
-		const isInDenyFolder = denyListedFolders.some((folder) =>
-		  f.path.startsWith(folder + '/')
-		);
-		if (custom?.doUpdate === false || isInDenyFolder) {
-		  continue;
-		}
-  
-		const vp = this.resolveVaultPath(f.path);
-		let tag = '';
-		if (vp !== f.path) tag = ' (remapped)';
-  
-		const exists = await this.app.vault.adapter.exists(vp);
-		const upToDate = exists && (await this.fileCacheManager.isUpToDate(vp));
-  
-		if (!exists) {
-		  changes.push(`📄 New file: ${vp}${tag}`);
-		} else if (!upToDate) {
-		  changes.push(`🔁 Will update: ${vp}${tag}`);
-		}
-	  }
-  
-	  for (const fld of this.manifestCache.folders) {
-		// ── SKIP any optional:true folder
-		if (fld.optional) {
-		  continue;
-		}
-  
-		const isDenyFolder = denyListedFolders.includes(fld.path);
-		const exists = await this.app.vault.adapter.exists(fld.path);
-		if (!exists && !isDenyFolder) {
-		  changes.push(`📁 New folder: ${fld.path}`);
-		}
-	  }
-  
-	  return changes.length ? changes : ['✅ Everything is already up to date!'];
-	}
-  
-	// 3) CUSTOM‐SYNC mode (skip any file/folder that’s blacklisted)
-	for (const f of this.manifestCache.files) {
-	  // ── SKIP any optional:true file
-	  if (f.optional) {
-		continue;
-	  }
-  
-	  const custom = this.settings.customPaths.find((c) => c.manifestKey === f.path);
-	  const isInDenyFolder = denyListedFolders.some((folder) =>
-		f.path.startsWith(folder + '/')
-	  );
-	  if (custom?.doUpdate === false || isInDenyFolder) {
-		continue;
-	  }
-  
-	  const vp = custom?.vaultPath ?? this.resolveVaultPath(f.path);
-	  let tag = '';
-	  if (vp !== f.path) tag = ' (remapped)';
-  
-	  const exists = await this.app.vault.adapter.exists(vp);
-	  const upToDate = exists && (await this.fileCacheManager.isUpToDate(vp));
-  
-	  if (!exists) {
-		changes.push(`📄 New file: ${vp}${tag}`);
-	  } else if (!upToDate) {
-		changes.push(`🔁 Will update: ${vp}${tag}`);
-	  }
-	}
-  
-	for (const fld of this.manifestCache.folders) {
-	  // ── SKIP any optional:true folder
-	  if (fld.optional) {
-		continue;
-	  }
-  
-	  const isDenyFolder = denyListedFolders.includes(fld.path);
-	  const exists = await this.app.vault.adapter.exists(fld.path);
-	  if (!exists && !isDenyFolder) {
-		changes.push(`📁 New folder: ${fld.path}`);
-	  }
-	}
-  
-	// 3c) “Moved” detection (skip blacklisted)
-	for (const f of this.manifestCache.files) {
-	  // ── SKIP any optional:true file
-	  if (f.optional) {
-		continue;
-	  }
-  
-	  const manifestKey = f.key;
-	  const manifestPath = f.path;
-	  const custom = this.settings.customPaths.find((c) => c.manifestKey === manifestKey);
-	  const prevPath = this.oldPathsByGithub[manifestPath];
-  
-	  const isInDenyFolder = denyListedFolders.some((folder) =>
-		manifestPath.startsWith(folder + '/')
-	  );
-	  if (custom?.doUpdate === false || isInDenyFolder) {
-		continue;
-	  }
-	  if (custom && custom.vaultPath && custom.vaultPath !== manifestPath) {
-		continue;
-	  }
-	  if (
-		prevPath &&
-		prevPath !== manifestPath &&
-		(!custom || custom.vaultPath === manifestPath)
-	  ) {
-		changes.push(`➡️ Moved: ${prevPath} → ${manifestPath}`);
-	  }
-	}
-  
-	return changes.length ? changes : ['✅ Everything is already up to date!'];
+    const changes: string[] = [];
+
+    // 0) Collect all blacklisted folders (manifestKey values where doUpdate === false)
+    const denyListedFolders = this.settings.customPaths
+      .filter((c) => c.doUpdate === false)
+      .map((c) => c.manifestKey);
+
+    // 1) Deny‐listed entries—but only if they’d actually be “new” (missing) or “out‐of‐date”
+    for (const f of this.manifestCache.files) {
+      // ── SKIP any optional:true file
+      if (f.optional) {
+        continue;
+      }
+
+      const custom = this.settings.customPaths.find((c) => c.manifestKey === f.path);
+      const isInDenyFolder = denyListedFolders.some((folder) =>
+        f.path.startsWith(folder + '/')
+      );
+      if (custom?.doUpdate === false || isInDenyFolder) {
+        // Resolve the vault path (handles remapping if present)
+        const vp = custom?.vaultPath ?? this.resolveVaultPath(f.path);
+
+        // Check if file exists locally and if it’s up‐to‐date
+        const exists = await this.app.vault.adapter.exists(vp);
+        const upToDate = exists && (await this.fileCacheManager.isUpToDate(vp));
+
+        // Only show a deny‐listed entry if it would otherwise be created or overwritten
+        if (!exists || !upToDate) {
+          changes.push(`❌ deny‐listed – will not update: ${vp}`);
+        }
+      }
+    }
+
+    // 2) FULL‐SYNC mode (skip any file/folder that’s blacklisted)
+    if (!this.settings.customizeUpdates) {
+      for (const f of this.manifestCache.files) {
+        // ── SKIP any optional:true file
+        if (f.optional) {
+          continue;
+        }
+
+        const custom = this.settings.customPaths.find((c) => c.manifestKey === f.path);
+        const isInDenyFolder = denyListedFolders.some((folder) =>
+          f.path.startsWith(folder + '/')
+        );
+        if (custom?.doUpdate === false || isInDenyFolder) {
+          continue;
+        }
+
+        const vp = this.resolveVaultPath(f.path);
+        let tag = '';
+        if (vp !== f.path) tag = ' (remapped)';
+
+        const exists = await this.app.vault.adapter.exists(vp);
+        const upToDate = exists && (await this.fileCacheManager.isUpToDate(vp));
+
+        if (!exists) {
+          changes.push(`📄 New file: ${vp}${tag}`);
+        } else if (!upToDate) {
+          changes.push(`🔁 Will update: ${vp}${tag}`);
+        }
+      }
+
+      for (const fld of this.manifestCache.folders) {
+        // ── SKIP any optional:true folder
+        if (fld.optional) {
+          continue;
+        }
+
+        const isDenyFolder = denyListedFolders.includes(fld.path);
+        const exists = await this.app.vault.adapter.exists(fld.path);
+        if (!exists && !isDenyFolder) {
+          changes.push(`📁 New folder: ${fld.path}`);
+        }
+      }
+
+      return changes.length ? changes : ['✅ Everything is already up to date!'];
+    }
+
+    // 3) CUSTOM‐SYNC mode (skip any file/folder that’s blacklisted)
+    for (const f of this.manifestCache.files) {
+      // ── SKIP any optional:true file
+      if (f.optional) {
+        continue;
+      }
+
+      const custom = this.settings.customPaths.find((c) => c.manifestKey === f.path);
+      const isInDenyFolder = denyListedFolders.some((folder) =>
+        f.path.startsWith(folder + '/')
+      );
+      if (custom?.doUpdate === false || isInDenyFolder) {
+        continue;
+      }
+
+      const vp = custom?.vaultPath ?? this.resolveVaultPath(f.path);
+      let tag = '';
+      if (vp !== f.path) tag = ' (remapped)';
+
+      const exists = await this.app.vault.adapter.exists(vp);
+      const upToDate = exists && (await this.fileCacheManager.isUpToDate(vp));
+
+      if (!exists) {
+        changes.push(`📄 New file: ${vp}${tag}`);
+      } else if (!upToDate) {
+        changes.push(`🔁 Will update: ${vp}${tag}`);
+      }
+    }
+
+    for (const fld of this.manifestCache.folders) {
+      // ── SKIP any optional:true folder
+      if (fld.optional) {
+        continue;
+      }
+
+      const isDenyFolder = denyListedFolders.includes(fld.path);
+      const exists = await this.app.vault.adapter.exists(fld.path);
+      if (!exists && !isDenyFolder) {
+        changes.push(`📁 New folder: ${fld.path}`);
+      }
+    }
+
+    // 3c) “Moved” detection (skip blacklisted)
+    for (const f of this.manifestCache.files) {
+      // ── SKIP any optional:true file
+      if (f.optional) {
+        continue;
+      }
+
+      const manifestKey = f.key;
+      const manifestPath = f.path;
+      const custom = this.settings.customPaths.find((c) => c.manifestKey === manifestKey);
+      const prevPath = this.oldPathsByGithub[manifestPath];
+
+      const isInDenyFolder = denyListedFolders.some((folder) =>
+        manifestPath.startsWith(folder + '/')
+      );
+      if (custom?.doUpdate === false || isInDenyFolder) {
+        continue;
+      }
+      if (custom && custom.vaultPath && custom.vaultPath !== manifestPath) {
+        continue;
+      }
+      if (
+        prevPath &&
+        prevPath !== manifestPath &&
+        (!custom || custom.vaultPath === manifestPath)
+      ) {
+        changes.push(`➡️ Moved: ${prevPath} → ${manifestPath}`);
+      }
+    }
+
+    return changes.length ? changes : ['✅ Everything is already up to date!'];
   }
-  
-  
-  
+
+
+
   // ─── VERSION-CHECK / UPDATE FLOW ─────────────────────────────────────
 
   async checkForUpdates(): Promise<void> {
@@ -1508,7 +1621,7 @@ private async checkMarkerFile() {
 
     // 1) Read local toolkit version
     let localTK = '0.0.0';
-      if (this.settings.isFirstRun !== "yes") {
+    if (this.settings.isFirstRun !== "yes") {
       try {
         const content = await this.app.vault.adapter.read(toolkitPath);
         const json = JSON.parse(content);
@@ -1564,40 +1677,45 @@ private async checkMarkerFile() {
     }
   }
 
-async loadSettings() {
-  // 1) grab whatever’s on disk (might be null)
-  const raw = (await this.loadData()) as Partial<ToolkitSettings> | null;
-  const cleaned = raw ?? {};
+  async loadSettings() {
+    // 1) grab whatever’s on disk (might be null)
+    const raw = (await this.loadData()) as Partial<ToolkitSettings> | null;
+    const cleaned = raw ?? {};
 
-  // 2) drop the old needsInstall flag
-  if ((cleaned as any).needsInstall != null) {
-    delete (cleaned as any).needsInstall;
+    // 2) drop the old needsInstall flag
+    if ((cleaned as any).needsInstall != null) {
+      delete (cleaned as any).needsInstall;
+    }
+
+    // 3) merge defaults + cleaned data
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, cleaned);
+    if (typeof (cleaned as any).preferNameWhenBoth === "boolean") {
+      this.settings.sessionTitlePreference =
+        (cleaned as any).preferNameWhenBoth ? "name" : "date";
+      delete (this.settings as any).preferNameWhenBoth;
+    };
+
+    // 4) figure out whether we’re first-run
+    this.isFirstRun = !(await this.app.vault.adapter.exists('.vvunderlore_installed'));
+
+    // 5) set up cacheManager so saveSettings() can safely use .getCache()
+    this.fileCacheManager = new ToolkitFileCacheManager(
+      this.app.vault,
+      cleaned.fileCache ?? {},
+      async () => await this.saveSettings()
+    );
+
+    // 6) now persist the “cleaned” settings back to disk exactly once
+    await this.saveSettings();
+
+    // 7) back-fill any brand-new fields
+    if (typeof this.settings.rulesetCompendium !== 'string') {
+      this.settings.rulesetCompendium = '';
+    }
+    if (!Array.isArray(this.settings.rulesetReference)) {
+      this.settings.rulesetReference = [];
+    }
   }
-
-  // 3) merge defaults + cleaned data
-  this.settings = Object.assign({}, DEFAULT_SETTINGS, cleaned);
-
-  // 4) figure out whether we’re first-run
-  this.isFirstRun = !(await this.app.vault.adapter.exists('.vvunderlore_installed'));
-
-  // 5) set up cacheManager so saveSettings() can safely use .getCache()
-  this.fileCacheManager = new ToolkitFileCacheManager(
-    this.app.vault,
-    cleaned.fileCache ?? {},
-    async () => await this.saveSettings()
-  );
-
-  // 6) now persist the “cleaned” settings back to disk exactly once
-  await this.saveSettings();
-
-  // 7) back-fill any brand-new fields
-  if (typeof this.settings.rulesetCompendium !== 'string') {
-    this.settings.rulesetCompendium = '';
-  }
-  if (!Array.isArray(this.settings.rulesetReference)) {
-    this.settings.rulesetReference = [];
-  }
-}
 
 
 
@@ -1882,7 +2000,7 @@ async loadSettings() {
     }
   }
 
-    /** main.ts **/
+  /** main.ts **/
 
   /** 
    * Install the selected compendium and zero or more reference editions.
@@ -1896,141 +2014,142 @@ async loadSettings() {
     }
 
 
-  let installSucceeded = false;
-  try {
-    // 2) Static copy of everything in the repo EXCEPT any Compendium/*
-    const treeApi =
-      "https://api.github.com/repos/slamwise0001/VVunderlore-Toolkit-Full/git/trees/main?recursive=1";
-    const resp = await fetch(treeApi);
-    if (!resp.ok) {
-      throw new Error(`Failed to list repo tree: ${resp.statusText}`);
-    }
-    const json: any = await resp.json();
-    const items = Array.isArray(json.tree) ? json.tree : [];
+    let installSucceeded = false;
+    try {
+      // 2) Static copy of everything in the repo EXCEPT any Compendium/*
+      const treeApi =
+        "https://api.github.com/repos/slamwise0001/VVunderlore-Toolkit-Full/git/trees/main?recursive=1";
+      const resp = await fetch(treeApi);
+      if (!resp.ok) {
+        throw new Error(`Failed to list repo tree: ${resp.statusText}`);
+      }
+      const json: any = await resp.json();
+      const items = Array.isArray(json.tree) ? json.tree : [];
 
-    // Use your excludedPaths (which already contains "Compendium")
-    const staticEntries = (items as Array<{ path: string; type: string }>)
-      .filter((item) =>
-        !this.excludedPaths.some(ex =>
-          item.path === ex || item.path.startsWith(`${ex}/`)
+      // Use your excludedPaths (which already contains "Compendium")
+      const staticEntries = (items as Array<{ path: string; type: string }>)
+        .filter((item) =>
+          !this.excludedPaths.some(ex =>
+            item.path === ex || item.path.startsWith(`${ex}/`)
+          )
         )
-      )
-      .sort((a, b) => (a.type === b.type ? 0 : a.type === "tree" ? -1 : 1));
+        .sort((a, b) => (a.type === b.type ? 0 : a.type === "tree" ? -1 : 1));
 
-    for (const entry of staticEntries) {
-      if (entry.type === "tree") {
-        if (!(await this.app.vault.adapter.exists(entry.path))) {
-          await this.app.vault.createFolder(entry.path);
-        }
-      } else {
-        const rawUrl = 
-          `https://raw.githubusercontent.com/slamwise0001/VVunderlore-Toolkit-Full/main/${encodeURIComponent(entry.path)}`;
-        const fileResp = await fetch(rawUrl);
-        if (!fileResp.ok) continue;
-        const text = await fileResp.text();
-        if (await this.app.vault.adapter.exists(entry.path)) {
-          const old = await this.app.vault.adapter.read(entry.path);
-          if (old !== text) {
-            await this.app.vault.adapter.write(entry.path, text);
+      for (const entry of staticEntries) {
+        if (entry.type === "tree") {
+          if (!(await this.app.vault.adapter.exists(entry.path))) {
+            await this.app.vault.createFolder(entry.path);
           }
         } else {
-          await this.app.vault.create(entry.path, text);
+          const rawUrl =
+            `https://raw.githubusercontent.com/slamwise0001/VVunderlore-Toolkit-Full/main/${encodeURIComponent(entry.path)}`;
+          const fileResp = await fetch(rawUrl);
+          if (!fileResp.ok) continue;
+          const text = await fileResp.text();
+          if (await this.app.vault.adapter.exists(entry.path)) {
+            const old = await this.app.vault.adapter.read(entry.path);
+            if (old !== text) {
+              await this.app.vault.adapter.write(entry.path, text);
+            }
+          } else {
+            await this.app.vault.create(entry.path, text);
+          }
         }
       }
-    }
 
       this.settings.rulesetCompendium = compendium;
       const pickedRefs = references.length > 0
-          ? references
-          : this.settings.rulesetReference;
-        this.settings.rulesetReference = pickedRefs;
+        ? references
+        : this.settings.rulesetReference;
+      this.settings.rulesetReference = pickedRefs;
 
-        await this.saveSettings();
+      await this.saveSettings();
 
-        // now run the import jobs against the compendium + the actual refs
-        const jobs = [
-          importRulesetData({ app: this.app, editionKey: compendium, targetPath: "Compendium" }),
-           ...pickedRefs.map(refKey => {
-    const displayName = getRulesetDisplayName(refKey);
-    return importRulesetData({
-      app:        this.app,
-      editionKey: refKey,
-      targetPath: `Resources/Rulesets/${displayName}`,})
+      // now run the import jobs against the compendium + the actual refs
+      const jobs = [
+        importRulesetData({ app: this.app, editionKey: compendium, targetPath: "Compendium" }),
+        ...pickedRefs.map(refKey => {
+          const displayName = getRulesetDisplayName(refKey);
+          return importRulesetData({
+            app: this.app,
+            editionKey: refKey,
+            targetPath: `Resources/Rulesets/${displayName}`,
+          })
         })
-        ];
-        await Promise.all(jobs);
+      ];
+      await Promise.all(jobs);
 
-    // 3) Kick off your JSON→MD parsers in parallel
-    const parseJobs = [
-      importRulesetData({
-        app: this.app,
-        editionKey: compendium,
-        targetPath: `Compendium`,
-      }),
-    ...references.map(refKey => {
-      const displayName = getRulesetDisplayName(refKey);
-      return importRulesetData({
-        app:        this.app,
-        editionKey: refKey,
-        targetPath: `Resources/Rulesets/${displayName}`,
+      // 3) Kick off your JSON→MD parsers in parallel
+      const parseJobs = [
+        importRulesetData({
+          app: this.app,
+          editionKey: compendium,
+          targetPath: `Compendium`,
+        }),
+        ...references.map(refKey => {
+          const displayName = getRulesetDisplayName(refKey);
+          return importRulesetData({
+            app: this.app,
+            editionKey: refKey,
+            targetPath: `Resources/Rulesets/${displayName}`,
           })
         }),
       ];
-    // this won’t resolve until _all_ parsers have finished writing their MD files
-    await Promise.all(parseJobs);
+      // this won’t resolve until _all_ parsers have finished writing their MD files
+      await Promise.all(parseJobs);
 
-    // 4) Post-install housekeeping
-    const marker = ".vvunderlore_installed";
-    if (!(await this.app.vault.adapter.exists(marker))) {
-      await this.app.vault.create(marker, "");
+      // 4) Post-install housekeeping
+      const marker = ".vvunderlore_installed";
+      if (!(await this.app.vault.adapter.exists(marker))) {
+        await this.app.vault.create(marker, "");
+      }
+      this.settings.highlightEnabled = true;
+      await this.saveSettings();
+      this.enableHighlight();
+
+      installSucceeded = true;
+    } catch (err) {
+      console.error("❌ installFullToolkit()", err);
+    } finally {
+      // only now close the spinner & redraw the UI
+      if (this.settingsTab) this.settingsTab.display();
+      new Notice(
+        installSucceeded
+          ? "✅ VVunderlore Toolkit successfully installed!"
+          : "❌ Failed to install toolkit. See console for details."
+      );
     }
-    this.settings.highlightEnabled = true;
-    await this.saveSettings();
-    this.enableHighlight();
-
-    installSucceeded = true;
-  } catch (err) {
-    console.error("❌ installFullToolkit()", err);
-  } finally {
-    // only now close the spinner & redraw the UI
-    if (this.settingsTab) this.settingsTab.display();
-    new Notice(
-      installSucceeded
-        ? "✅ VVunderlore Toolkit successfully installed!"
-        : "❌ Failed to install toolkit. See console for details."
-    );
-  }
-}
-
-// * Re-parse all gameset data (ruleset compendium + reference sets)
-async refreshGameSetData(): Promise<void> {
-  const { rulesetCompendium, rulesetReference } = this.settings;
-
-  if (!rulesetCompendium && rulesetReference.length === 0) {
-    new Notice("⚠️ No gameset keys set; nothing to refresh.");
-    return;
   }
 
-  const jobs: Promise<unknown>[] = [];
-  if (rulesetCompendium) {
-    jobs.push(importRulesetData({
-      app: this.app,
-      editionKey: rulesetCompendium,
-      targetPath: "Compendium",
-    }));
-  }
-for (const ref of rulesetReference) {
-  const displayName = getRulesetDisplayName(ref);
-  jobs.push(importRulesetData({
-    app:        this.app,
-    editionKey: ref,
-    targetPath: `Resources/Rulesets/${displayName}`,
-  }));
-}
+  // * Re-parse all gameset data (ruleset compendium + reference sets)
+  async refreshGameSetData(): Promise<void> {
+    const { rulesetCompendium, rulesetReference } = this.settings;
 
-  await Promise.all(jobs);
-  new Notice("✅ Game Set Data refreshed.");
-}
+    if (!rulesetCompendium && rulesetReference.length === 0) {
+      new Notice("⚠️ No gameset keys set; nothing to refresh.");
+      return;
+    }
+
+    const jobs: Promise<unknown>[] = [];
+    if (rulesetCompendium) {
+      jobs.push(importRulesetData({
+        app: this.app,
+        editionKey: rulesetCompendium,
+        targetPath: "Compendium",
+      }));
+    }
+    for (const ref of rulesetReference) {
+      const displayName = getRulesetDisplayName(ref);
+      jobs.push(importRulesetData({
+        app: this.app,
+        editionKey: ref,
+        targetPath: `Resources/Rulesets/${displayName}`,
+      }));
+    }
+
+    await Promise.all(jobs);
+    new Notice("✅ Game Set Data refreshed.");
+  }
 
 
 

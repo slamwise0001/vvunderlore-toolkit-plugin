@@ -5,12 +5,6 @@ import { promises as fs } from 'fs';
 export class BackupManager {
   constructor(private app: App) {}
 
-  /**
-   * Mirror every vault file (excluding .obsidian & backups) into a timestamped folder,
-   * then prune to keep only the latest N full snapshots.
-   * @param label Optional suffix for the backup folder name
-   * @param maxFullBackups Number of full snapshots to retain (default: 5)
-   */
   async backupVaultMirror(label?: string, maxFullBackups: number = 5): Promise<string> {
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
     const tag = label ? `-${label}` : '';
@@ -19,16 +13,27 @@ export class BackupManager {
     await this.ensureFolderExists(base);
 
     for (const file of this.app.vault.getFiles()) {
-      if (file.path.startsWith('.vault-backups/') || file.path.startsWith(`${this.app.vault.configDir}/`)) {
+      const p = file.path;
+      if (
+        p.startsWith('.vault-backups/') ||
+        p.startsWith(`${this.app.vault.configDir}/`) ||
+        p.startsWith('.trash/') ||
+        p.startsWith('.git/')
+      ) {
         continue;
       }
-      const content = await this.app.vault.read(file);
-      const target = normalizePath(`${base}/${file.path}`);
-      await this.ensureFolderExists(dirname(target));
-      await this.app.vault.create(target, content);
-    }
 
-    // console.log('[BackupManager] Mirror backup complete. Pruning old backups...');
+      const target = normalizePath(`${base}/${p}`);
+      await this.ensureFolderExists(dirname(target));
+
+      try {
+        const data = await this.app.vault.adapter.readBinary(p);
+        await this.app.vault.adapter.writeBinary(target, data);
+      } catch (e) {
+        console.error('[BackupManager] copy failed:', p, e);
+        // continue to next file
+      }
+    }
     await this.pruneFullBackups(base, maxFullBackups);
     new Notice("✅ Backup complete!");
     return base;
@@ -45,61 +50,27 @@ export class BackupManager {
    * Deletes oldest full backup folders, keeping only the most recent `keep` snapshots.
    */
   private async pruneFullBackups(currentPath: string, keep: number) {
-    const root = normalizePath('.vault-backups/full');
-   // console.log(`[BackupManager] pruneFullBackups: root=${root}, keep=${keep}`);
+  const root = normalizePath('.vault-backups/full');
+  await this.ensureFolderExists(root);
 
-    // ensure the root exists
-    await this.ensureFolderExists(root);
-    if (!(await this.app.vault.adapter.exists(root))) {
-     // console.log('[BackupManager] pruneFullBackups: root folder not found');
-      return;
-    }
+  const listing = await this.app.vault.adapter.list(root);
+  const folderPaths: string[] = (listing as any)?.folders ?? [];
+  const names = folderPaths.map(f => basename(f));
 
-    // get folder names
-    const listing = await this.app.vault.adapter.list(root);
-    const rawFolders: string[] = Array.isArray(listing)
-      ? listing as string[]
-      : 'folders' in listing
-      ? (listing as any).folders
-      : [];
-    const folders = rawFolders.map(f => basename(f));
-    //console.log('[BackupManager] pruneFullBackups: folders (basenames):', folders);
+  // sort newest→oldest by ISO-ish folder name
+  const sorted = [...names].sort((a, b) => b.localeCompare(a));
 
-    // sort descending so newest first
-    const sorted = [...folders].sort((a, b) => b.localeCompare(a));
-    //console.log('[BackupManager] pruneFullBackups: sorted:', sorted);
-
-    // compute filesystem root to remove from
-    const adapterAny = this.app.vault.adapter as any;
-    const fsRoot = adapterAny.basePath ? join(adapterAny.basePath, root) : null;
-    if (!fsRoot) {
-      //console.warn('[BackupManager] pruneFullBackups: cannot determine FS root, skipping prune');
-      return;
-    }
-
-    // remove old snapshots beyond `keep`
-    for (let i = keep; i < sorted.length; i++) {
-      const name = sorted[i];
-      const vaultPath = normalizePath(`${root}/${name}`);
-      if (vaultPath === currentPath) {
-       // console.log(`[BackupManager] pruneFullBackups: skipping current ${name}`);
-        continue;
-      }
-      //console.log(`[BackupManager] pruneFullBackups: removing FS folder: ${name}`);
-      const removePath = join(fsRoot, name);
-      try {
-        await fs.rm(removePath, { recursive: true, force: true });
-        //console.log(`[BackupManager] pruneFullBackups: removed ${removePath}`);
-      } catch (e) {
-       // console.error(`[BackupManager] pruneFullBackups: failed to remove ${removePath}`, e);
-      }
-      // also clean up vault index
-      const af = this.app.vault.getAbstractFileByPath(vaultPath);
-      if (af) {
-        await this.app.fileManager.trashFile(af);
-      }
+  const toRemove = sorted.slice(keep);
+  for (const name of toRemove) {
+    const vaultPath = normalizePath(`${root}/${name}`);
+    try {
+      // remove snapshot folder recursively via adapter
+      await this.app.vault.adapter.rmdir(vaultPath, true);
+    } catch (e) {
+      console.error('[BackupManager] prune failed:', vaultPath, e);
     }
   }
+}
 
   /**
    * Recursively ensures that a directory exists in the vault.

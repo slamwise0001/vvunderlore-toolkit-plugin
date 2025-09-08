@@ -1,3 +1,5 @@
+//class parser dnd 5e 2014
+
 import type { ParsedMarkdownFile } from "../../types";
 import { 
   buildFM, 
@@ -29,7 +31,14 @@ function formatFeatureLink(name: string): string {
   
     return `[[#${anchor}]]`;
   }
-  
+function toHeaderAnchor(name: string): string {
+  return name
+    .replace(/[^\w\s]/g, "")
+    .replace(/-/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, l => l.toUpperCase());
+}  
 export const OPT_FEATURE_TYPE_TO_FULL: Record<string,string> = {
   AI:   "Artificer Infusion",
   ED:   "Elemental Discipline",
@@ -466,13 +475,29 @@ for (const f of subclassFeatures) {
   }
 }
 
+// Build subclass traits (wikilinks to headers in this subclass file)
+const IGNORE_TRAITS = ["Ability Score Improvement", "Archetype Feature", "Subclass Feature"];
+const traitNames = Array.from(
+  new Set(
+    Object.values(featsByLvl)
+      .flat()
+      .map((f: any) => String(f?.name || "").trim())
+      .filter(n => n && !IGNORE_TRAITS.some(s => n.toLowerCase().includes(s.toLowerCase())))
+  )
+);
+
+const traitLinks = traitNames.map(n => `[[${subclassName}#${toHeaderAnchor(n)}|${n}]]`);
+
+// Minimal frontmatter for subclasses; FM_FIELDS keeps ordering consistent
+const subYaml = serializeFrontmatter({ traits: traitLinks }, CLASS_META_DEFS);
+
+
 for (const lvl of Object.keys(featsByLvl).map(Number).sort((a,b)=>a-b)) {
   subLines.push(`---`, `## Level ${lvl}`);
 
   for (const f of featsByLvl[lvl]) {
   subLines.push(`### ${f.name}`);
 
-  // Walk each entry for this feature
   for (const ent of Array.isArray(f.entries) ? f.entries : [f.entries]) {
     // 1) Plain paragraph entries
     if (typeof ent === "string") {
@@ -480,9 +505,7 @@ for (const lvl of Object.keys(featsByLvl).map(Number).sort((a,b)=>a-b)) {
       continue;
     }
 
-    // 2) If it's the "Maneuvers" entries‐block, inject your list here
     if (ent.type === "entries" && /^Maneuvers$/i.test(ent.name)) {
-      // first print the sub‐heading and any text it had
       subLines.push(`##### ${ent.name}`);
       for (const txt of Array.isArray(ent.entries) ? ent.entries : [ent.entries]) {
         subLines.push(typeof txt === "string"
@@ -490,7 +513,6 @@ for (const lvl of Object.keys(featsByLvl).map(Number).sort((a,b)=>a-b)) {
           : formatEntry(txt));
       }
 
-      // now inject the full maneuver definitions for this subclass
       const code = (Object.entries(OPT_FEATURE_TYPE_TO_FULL) as [string,string][])
         .find(([, full]) =>
           full.toLowerCase().includes(subclassName.toLowerCase())
@@ -512,7 +534,6 @@ for (const lvl of Object.keys(featsByLvl).map(Number).sort((a,b)=>a-b)) {
       continue;
     }
 
-    // 3) Any other nested "entries" blocks
     if (ent.type === "entries" && ent.name) {
       subLines.push(`##### ${ent.name}`);
       for (const e2 of Array.isArray(ent.entries) ? ent.entries : [ent.entries]) {
@@ -521,7 +542,6 @@ for (const lvl of Object.keys(featsByLvl).map(Number).sort((a,b)=>a-b)) {
       continue;
     }
 
-    // 4) Insets
     if (ent.type === "inset" && ent.name) {
       const inner = Array.isArray(ent.entries) ? ent.entries : [ent.entries];
       subLines.push(`> **${ent.name}**`);
@@ -529,7 +549,6 @@ for (const lvl of Object.keys(featsByLvl).map(Number).sort((a,b)=>a-b)) {
       continue;
     }
 
-    // 5) Fallback
     const fb = formatEntry(ent);
     if (fb) subLines.push(fb);
   }
@@ -538,9 +557,12 @@ for (const lvl of Object.keys(featsByLvl).map(Number).sort((a,b)=>a-b)) {
 
 
   // ─── Clean up & push ───
-  const subclassContent = subLines
+  const subclassContentBody = subLines
     .join("\n\n")
     .replace(/\n{3,}/g, "\n\n");
+
+  const subclassContent = `---\n${subYaml}\n---\n\n${subclassContentBody}`;  
+
   subclassFiles.push({
     path: `Classes/${className}/Subclasses/${subclassName}.md`,
     content: subclassContent

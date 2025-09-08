@@ -1,3 +1,5 @@
+//dnd 5e 2014 installer
+
 import { App, normalizePath } from "obsidian";
 import type { Edition } from "../../editions";
 import { parseSpellsFile } from "./spells";
