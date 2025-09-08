@@ -191,6 +191,7 @@ interface ToolkitSettings {
   reparseGamesets: boolean;
   isFirstRun: "yes" | "no" | "shown";
   sessionTitlePreference: "name" | "date";
+  enableSidebarPreviews: boolean;
 
 }
 
@@ -224,6 +225,7 @@ const DEFAULT_SETTINGS: ToolkitSettings = {
   reparseGamesets: true,
   isFirstRun: "yes",
   sessionTitlePreference: "name",
+  enableSidebarPreviews: true,
 };
 
 interface CustomPathEntry {

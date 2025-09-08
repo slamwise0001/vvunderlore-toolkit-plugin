@@ -521,10 +521,15 @@ export class GameplaySidebarView extends ItemView {
         const linkTo = (target: string, label?: string) => {
             const dest = this.app.metadataCache.getFirstLinkpathDest(target, file.path);
             const text = (label ?? target.split("/").pop()!.replace(/\.md$/, "")).trim();
+
+            const plugin = getToolkit(this.app);
+            const enablePreview = !!plugin?.settings?.enableSidebarPreviews;
+
             return dest
-                ? `<a class="internal-link" href="${dest.path}">${text}</a>`
+                ? `<a class="vv-link${enablePreview ? " internal-link" : ""}" href="${dest.path}"${enablePreview ? ` data-href="${dest.path}"` : ""}>${text}</a>`
                 : text;
         };
+
 
         const parseMaybeLink = (val: unknown): string => {
             // supports '[[Path|Label]]', '[[Path]]', plain string, or dv-like {path: "..."}
@@ -669,8 +674,11 @@ export class GameplaySidebarView extends ItemView {
                     }
 
                     const displayName = (n.label ?? n.linkText).split("/").pop()!.replace(/\.md$/, "").trim();
+                    const plugin = getToolkit(this.app);
+                    const enablePreview = !!plugin?.settings?.enableSidebarPreviews;
+
                     const nameHtml = dest
-                        ? `<a class="internal-link" href="${dest.path}">${displayName}</a>`
+                        ? `<a class="vv-link${enablePreview ? " internal-link" : ""}" href="${dest.path}"${enablePreview ? ` data-href="${dest.path}"` : ""}>${displayName}</a>`
                         : displayName;
 
                     const fmSpell = dest ? (this.app.metadataCache.getFileCache(dest)?.frontmatter || {}) : {};
@@ -724,13 +732,32 @@ export class GameplaySidebarView extends ItemView {
         }
         card.addEventListener("click", (e) => {
             const t = e.target as HTMLElement | null;
-            const a = t?.closest("a.internal-link") as HTMLAnchorElement | null;
+            const a = t?.closest("a.vv-link") as HTMLAnchorElement | null;
             if (!a) return;
             e.preventDefault();
             const target = a.getAttribute("href");
             if (!target) return;
             this.app.workspace.openLinkText(target, file.path, true); // set to false to reuse current tab
         });
+        const plugin = getToolkit(this.app);
+        const pagePreview = (this.app as any).internalPlugins
+            ?.getPluginById?.("page-preview")
+            ?.instance;
+
+        if (pagePreview?.onLinkHover) {
+            card.addEventListener("mousemove", (ev) => {
+                const t = ev.target as HTMLElement | null;
+                const a = t?.closest("a.vv-link") as HTMLAnchorElement | null;
+                if (!a) return;
+
+                const linkText = a.getAttribute("data-href") || a.getAttribute("href");
+                if (!linkText) return;
+                if (plugin.settings.enableSidebarPreviews) {
+                    pagePreview.onLinkHover(ev, a, linkText, file.path);
+                }
+            });
+
+        }
 
     }
 
@@ -883,6 +910,15 @@ export class GameplaySidebarView extends ItemView {
         await this.renderAddRow();
         await this.renderTable();
         this.startLiveUpdates();
+        this.registerEvent(
+            (this.app.workspace as any).on('vv:sidebar-previews-changed', async (data?: { enabled: boolean }) => {
+                await this.renderTable();
+                if (this.detailsOpenPath) {
+                    const f = this.app.vault.getAbstractFileByPath(this.detailsOpenPath);
+                    if (f instanceof TFile) await this.showDetails(f);
+                }
+            })
+        );
     }
 
     async onClose() { }
@@ -1064,6 +1100,12 @@ export class GameplaySidebarView extends ItemView {
                 e.preventDefault();
                 this.app.workspace.openLinkText(r.file.path, "", true);
             });
+            const enablePreview = !!getToolkit(this.app)?.settings?.enableSidebarPreviews;
+            a.classList.add("vv-link");
+            if (enablePreview) {
+                a.classList.add("internal-link");
+                a.setAttr("data-href", r.file.path);
+            }
 
             // pp
             tr.createEl("td", { text: String(r.pp), attr: { style: "text-align:center; white-space:nowrap;" } });
@@ -1140,5 +1182,34 @@ export class GameplaySidebarView extends ItemView {
             });
 
         }
+        const pagePreview = (this.app as any).internalPlugins
+            ?.getPluginById?.("page-preview")
+            ?.instance;
+
+        const enablePreview = !!getToolkit(this.app)?.settings?.enableSidebarPreviews;
+
+        if (this.partyTableWrap && (this.partyTableWrap as any)._vvHoverWired && !enablePreview) {
+            const prev = (this.partyTableWrap as any)._vvHoverHandler as ((ev: MouseEvent) => void) | undefined;
+            if (prev) this.partyTableWrap.removeEventListener('mousemove', prev);
+            delete (this.partyTableWrap as any)._vvHoverWired;
+            delete (this.partyTableWrap as any)._vvHoverHandler;
+        }
+
+        if (pagePreview?.onLinkHover && enablePreview && this.partyTableWrap && !(this.partyTableWrap as any)._vvHoverWired) {
+            (this.partyTableWrap as any)._vvHoverWired = true;
+            const handler = (ev: MouseEvent) => {
+                const t = ev.target as HTMLElement | null;
+                const a = t?.closest("a.internal-link") as HTMLAnchorElement | null;
+                if (!a) return;
+                const linkText = a.getAttribute("data-href") || a.getAttribute("href");
+                if (!linkText) return;
+                pagePreview.onLinkHover(ev, a, linkText, a.getAttribute("href") || "");
+            };
+
+            this.partyTableWrap.addEventListener("mousemove", handler);
+            (this.partyTableWrap as any)._vvHoverWired = true;
+            (this.partyTableWrap as any)._vvHoverHandler = handler;
+
+        } 
     }
 }

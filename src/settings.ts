@@ -1099,9 +1099,18 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 					});
 				});
 
-
-
-
+			// Toggle: Disable page previews in sidebars
+			new Setting(behaviorBody)
+				.setName("Enable Page Previews in Sidebars")
+				.setDesc("If enabled, links in VVunderlore sidebars (VVorldbuilding, Gameplay) will show hover previews.")
+				.addToggle((toggle) => {
+					toggle.setValue(this.plugin.settings.enableSidebarPreviews ?? false);
+					toggle.onChange(async (val: boolean) => {
+						this.plugin.settings.enableSidebarPreviews = val;
+						await this.plugin.saveSettings();
+						(this.app.workspace as any).trigger('vv:sidebar-previews-changed', { enabled: val });
+					});
+				});
 
 			// ───── HIGHLIGHT SECTION ───────────────────────────────────────────────────
 			const highlightDetails = containerEl.createEl('details', { cls: 'vk-section' });
@@ -1367,14 +1376,13 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 				marginTop: '1em',
 			});
 			footer.createEl('span', {
-				text: `VVunderlore Toolkit Plugin v${this.plugin.manifest.version} • `
+				text: `VVunderlore Toolkit Plugin v${this.plugin.manifest.version}   • `
 			});
 			footer.createEl('a', {
 				text: 'View on GitHub',
 				href: 'https://github.com/slamwise0001/vvunderlore-toolkit-plugin',
 				attr: { target: '_blank' }
 			});
-
 			containerEl.scrollTop = savedScrollTop;
 		})();
 	}

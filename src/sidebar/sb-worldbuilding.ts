@@ -7,9 +7,17 @@ import {
   MarkdownView,
   Setting,
   TFolder,
-  setIcon
+  setIcon,
+  App
 } from 'obsidian';
 import { SPELLBOOK_VIEW_TYPE } from './sb-spellbook';
+
+function getToolkit(app: App): any {
+  return (
+    (app as any).plugins.getPlugin('vvunderlore-toolkit') ||
+    (app as any).plugins.plugins?.['vvunderlore-toolkit']
+  );
+}
 
 export const SIDEBAR_VIEW_TYPE = 'vvunderlore-templates-sidebar';
 
@@ -82,6 +90,36 @@ export class SidebarTemplatesView extends ItemView {
     ].join('\n');
   }
 
+  private _rewirePreviews(): void {
+    const enablePreview = !!getToolkit(this.app)?.settings?.enableSidebarPreviews;
+    const wrap = this.contentEl; // parent container for this view
+    const pagePreview = (this.app as any).internalPlugins?.getPluginById?.('page-preview')?.instance;
+
+    // If previously wired but now disabled, remove the handler
+    if ((wrap as any)._vvHoverWired && !enablePreview) {
+      const prev = (wrap as any)._vvHoverHandler as ((ev: MouseEvent) => void) | undefined;
+      if (prev) wrap.removeEventListener('mousemove', prev);
+      delete (wrap as any)._vvHoverWired;
+      delete (wrap as any)._vvHoverHandler;
+    }
+
+    // If enabled and not yet wired, attach handler
+    if (enablePreview && pagePreview?.onLinkHover && !(wrap as any)._vvHoverWired) {
+      const handler = (ev: MouseEvent) => {
+        const t = ev.target as HTMLElement | null;
+        const a = t?.closest('a.internal-link') as HTMLAnchorElement | null;
+        if (!a) return;
+        const linkText = a.getAttribute('data-href') || a.getAttribute('href');
+        if (!linkText) return;
+        // source path not critical here; pass empty since these links can come from mixed sources
+        pagePreview.onLinkHover(ev, a, linkText, '');
+      };
+      wrap.addEventListener('mousemove', handler);
+      (wrap as any)._vvHoverWired = true;
+      (wrap as any)._vvHoverHandler = handler;
+    }
+  }
+
   private renderPicks(): void {
     const picksDiv = this.containerEl.find('#spellbook-picks') as HTMLDivElement;
     if (!picksDiv) return;
@@ -147,6 +185,16 @@ export class SidebarTemplatesView extends ItemView {
           })(),
           href: '#'
         });
+
+        const enablePreview = !!getToolkit(this.app)?.settings?.enableSidebarPreviews;
+        if (enablePreview) {
+          if (file instanceof TFile) {
+            nameLink.classList.add('internal-link');
+            nameLink.setAttr('data-href', file.path);
+            nameLink.setAttr('href', file.path);
+          }
+        }
+
         nameLink.setAttr('style', 'font-weight:600; text-decoration:none; color:var(--text-accent);');
         nameLink.addEventListener('click', e => {
           e.preventDefault();
@@ -283,6 +331,13 @@ export class SidebarTemplatesView extends ItemView {
               e.preventDefault();
               this.app.workspace.openLinkText(hubFile!.path, '', false);
             });
+            const enablePreview = !!getToolkit(this.app)?.settings?.enableSidebarPreviews;
+            if (enablePreview) {
+              const p = hubFile!.path /* or latest.path for sessionLink */;
+              hubLink.classList.add('internal-link');
+              hubLink.setAttr('data-href', p);
+              hubLink.setAttr('href', p);
+            }
           }
 
           const sessionDir = `Adventures/${adv}/Session Notes/`;
@@ -296,6 +351,13 @@ export class SidebarTemplatesView extends ItemView {
               e.preventDefault();
               this.app.workspace.openLinkText(latest.path, '', false);
             });
+            const enablePreview = !!getToolkit(this.app)?.settings?.enableSidebarPreviews;
+            if (enablePreview) {
+              const p = latest.path /* or latest.path for sessionLink */;
+              sessionLink.classList.add('internal-link');
+              sessionLink.setAttr('data-href', p);
+              sessionLink.setAttr('href', p);
+            }
           }
 
           const list = wrapper.createDiv();
@@ -307,6 +369,13 @@ export class SidebarTemplatesView extends ItemView {
 
     // ─── SPELLBOOK ─────────────────────────────────────────────────────
     await this.showSpellbookSection();
+
+    this._rewirePreviews(); // initial
+    this.registerEvent(
+      (this.app.workspace as any).on('vv:sidebar-previews-changed', (_data?: { enabled: boolean }) => {
+        this._rewirePreviews();
+      })
+    );
   }
 
   async onClose() {
@@ -499,6 +568,12 @@ export class SidebarTemplatesView extends ItemView {
           linkEl.addEventListener('click', () => {
             this.app.workspace.openLinkText(path, '', false);
           });
+          const enablePreview = !!getToolkit(this.app)?.settings?.enableSidebarPreviews;
+          if (enablePreview) {
+            linkEl.classList.add('internal-link');
+            linkEl.setAttr('data-href', path);
+            linkEl.setAttr('href', path);
+          }
         });
     }
   }
@@ -767,9 +842,15 @@ export class SidebarTemplatesView extends ItemView {
       nameTd.setAttr('style', 'flex:2;padding:4px;');
       const link = nameTd.createEl('a', { attr: { href: '#' } });
       link.setText(fm.name || f.basename);
+      const enablePreview = !!getToolkit(this.app)?.settings?.enableSidebarPreviews;
+      if (enablePreview) {
+        link.classList.add('internal-link');
+        link.setAttr('data-href', f.path);
+        link.setAttr('href', f.path);
+      }
       link.addEventListener('click', e => {
         e.preventDefault();
-        this.app.workspace.openLinkText(f.basename, '', false);
+        this.app.workspace.openLinkText(f.path, '', false);
       });
 
       // Level
