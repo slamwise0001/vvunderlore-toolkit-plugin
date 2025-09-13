@@ -1111,6 +1111,20 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 						(this.app.workspace as any).trigger('vv:sidebar-previews-changed', { enabled: val });
 					});
 				});
+			new Setting(behaviorBody)
+				.setName("Opening New Template Notes")
+				.setDesc("Choose how new notes from templates are opened when created from command or the sidebar")
+				.addDropdown(drop => {
+					drop.addOption("default", "Open the new note");
+					drop.addOption("current", "Open but in the background");
+					drop.addOption("background", "Create but don't open");
+					drop.setValue(this.plugin.settings.templateOpenMode || "default");
+					drop.onChange(async (val) => {
+						this.plugin.settings.templateOpenMode =
+							val as "default" | "current" | "background";
+						await this.plugin.saveSettings();
+					});
+				});
 
 			// ───── HIGHLIGHT SECTION ───────────────────────────────────────────────────
 			const highlightDetails = containerEl.createEl('details', { cls: 'vk-section' });

@@ -87,12 +87,12 @@ export class SidebarTemplatesView extends ItemView {
   getIcon() { return 'mapmaking'; }
 
   public lastSelection: {
-  text: string;
-  filePath: string;
-  from: CodeMirror.Position;
-  to: CodeMirror.Position;
-  preText: string;
-} | null = null;
+    text: string;
+    filePath: string;
+    from: CodeMirror.Position;
+    to: CodeMirror.Position;
+    preText: string;
+  } | null = null;
 
 
   private spellSortKey: 'name' | 'level' | 'school' | 'damage' = 'name';
@@ -298,17 +298,17 @@ export class SidebarTemplatesView extends ItemView {
     this.contentEl.empty();
 
     this.registerEvent(
-  (this.app.workspace as any).on('editor-selection-change', (editor: any, view: any) => {
-    const text = editor.getSelection();
-    this.lastSelection = {
-      text,
-      filePath: view.file.path,
-      from: editor.getCursor('from'),
-      to: editor.getCursor('to'),
-      preText: editor.getValue(),
-    };
-  })
-);
+      (this.app.workspace as any).on('editor-selection-change', (editor: any, view: any) => {
+        const text = editor.getSelection();
+        this.lastSelection = {
+          text,
+          filePath: view.file.path,
+          from: editor.getCursor('from'),
+          to: editor.getCursor('to'),
+          preText: editor.getValue(),
+        };
+      })
+    );
 
     this.picks = [];
     this.addBtnByPath.clear();
@@ -320,30 +320,44 @@ export class SidebarTemplatesView extends ItemView {
     const btnContainer = this.contentEl.createDiv();
     btnContainer.addClass("sb-btn");
 
-    for (const def of TEMPLATE_BUTTONS) {
-      const btn = new ButtonComponent(btnContainer).setButtonText(def.label);
-      btn.buttonEl.style.flex = '1';
-      btn.buttonEl.style.minWidth = '120px';
+for (const def of TEMPLATE_BUTTONS) {
+  const btnEl = btnContainer.createEl("button", { text: def.label });
+  btnEl.style.flex = "1";
+  btnEl.style.minWidth = "120px";
 
-btn.buttonEl.addEventListener('pointerdown', () => {
-  const plugin = getToolkit(this.app);
-  const ctx = captureSelectionOrWord(this.app, this);
-  if (ctx) plugin?.setPendingSelectionContext?.(ctx);
-});
+  let originLeaf: WorkspaceLeaf | undefined;
 
-// only run the command here, no selection grab
-if ('commandId' in def) {
-  btn.onClick(() => {
-    const fullId = getFullCommandId(this.app, def.commandId);
-    const cmd = this.app.commands.findCommand(fullId);
-    if (!cmd) { new Notice(`Command not found: ${fullId}`); return; }
-    this.app.commands.executeCommandById(fullId);
+  // pointerdown: capture selection + origin leaf BEFORE sidebar steals focus
+  btnEl.addEventListener("pointerdown", () => {
+    const plugin = getToolkit(this.app);
+
+    // capture text selection (your existing logic)
+    const ctx = captureSelectionOrWord(this.app, this);
+    if (ctx) plugin?.setPendingSelectionContext?.(ctx);
+
+    // capture origin leaf
+    originLeaf = this.app.workspace.activeLeaf ?? undefined;
+    console.log("🟣 [pointerdown] Captured originLeaf:", originLeaf?.view instanceof MarkdownView ? originLeaf.view.file?.path : "(none)");
   });
-} else {
-  btn.onClick(() => this.runTemplate(def.path));
+
+  // click: run either a command or template with captured originLeaf
+  btnEl.addEventListener("click", () => {
+    if ("commandId" in def) {
+      const fullId = getFullCommandId(this.app, def.commandId);
+      const cmd = this.app.commands.findCommand(fullId);
+      if (!cmd) {
+        new Notice(`Command not found: ${fullId}`);
+        return;
+      }
+      this.app.commands.executeCommandById(fullId);
+    } else {
+      console.log("🟣 [click] Running template with originLeaf:", originLeaf?.view instanceof MarkdownView ? originLeaf.view.file?.path : "(none)");
+      this.runTemplate(def.path, originLeaf);
+    }
+  });
 }
 
-    }
+    
     this.contentEl.createEl('hr', { attr: { style: 'margin: 12px 0;' } });
 
     //  ADVENTURE LINKS 
@@ -449,10 +463,10 @@ if ('commandId' in def) {
     }
   }
 
-  private async runTemplate(path: string) {
+  private async runTemplate(path: string, originLeaf?: WorkspaceLeaf) {
     const plugin = getToolkit(this.app);
     if (!plugin) { new Notice('⚠️ VVunderlore Toolkit plugin not found.'); return; }
-    await plugin.runSBTemplate(path); // let main.ts handle linking exactly as it already does
+    await plugin.runSBTemplate(path, originLeaf);
   }
 
 

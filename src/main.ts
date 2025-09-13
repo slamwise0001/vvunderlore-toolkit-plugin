@@ -193,6 +193,8 @@ interface ToolkitSettings {
   isFirstRun: "yes" | "no" | "shown";
   sessionTitlePreference: "name" | "date";
   enableSidebarPreviews: boolean;
+  templateOpenMode: "default" | "current" | "background";
+
 
 }
 
@@ -227,6 +229,7 @@ const DEFAULT_SETTINGS: ToolkitSettings = {
   isFirstRun: "yes",
   sessionTitlePreference: "name",
   enableSidebarPreviews: true,
+  templateOpenMode: "default",
 };
 
 interface CustomPathEntry {
@@ -312,43 +315,43 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     return c;
   }
 
-// keep your old API working, but add a preWrap flag
-public setPendingSeed(s: string | null, preWrap: boolean = false) {
-  const v = this.app.workspace.getActiveViewOfType(MarkdownView);
-  const ed: any = v?.editor;
-  const filePath = v?.file?.path || '';
-  const sel = (s ?? ed?.getSelection?.() ?? '').toString();
+  // keep your old API working, but add a preWrap flag
+  public setPendingSeed(s: string | null, preWrap: boolean = false) {
+    const v = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const ed: any = v?.editor;
+    const filePath = v?.file?.path || '';
+    const sel = (s ?? ed?.getSelection?.() ?? '').toString();
 
-  if (sel && filePath) {
-    const ctx: PendingSelection = {
-      text: sel,
-      filePath,
-      from: ed?.getCursor?.('from'),
-      to: ed?.getCursor?.('to'),
-      preText: ed?.getValue?.(),
-      preWrapped: false,
-    };
+    if (sel && filePath) {
+      const ctx: PendingSelection = {
+        text: sel,
+        filePath,
+        from: ed?.getCursor?.('from'),
+        to: ed?.getCursor?.('to'),
+        preText: ed?.getValue?.(),
+        preWrapped: false,
+      };
 
-    if (preWrap && ed) {
-      // wrap now (preserve outer whitespace), but only if not already a wikilink
-      const alreadyLinked = /^\s*\[\[[\s\S]*\]\]\s*$/.test(sel);
-      if (!alreadyLinked) {
-        const m = sel.match(/^(\s*)([\s\S]*?)(\s*)$/);
-        const leading  = m?.[1] ?? '';
-        const core     = (m?.[2] ?? '').trim();
-        const trailing = m?.[3] ?? '';
-        if (core) {
-          ed.replaceSelection(`${leading}[[${core}]]${trailing}`);
-          ctx.preWrapped = true;
+      if (preWrap && ed) {
+        // wrap now (preserve outer whitespace), but only if not already a wikilink
+        const alreadyLinked = /^\s*\[\[[\s\S]*\]\]\s*$/.test(sel);
+        if (!alreadyLinked) {
+          const m = sel.match(/^(\s*)([\s\S]*?)(\s*)$/);
+          const leading = m?.[1] ?? '';
+          const core = (m?.[2] ?? '').trim();
+          const trailing = m?.[3] ?? '';
+          if (core) {
+            ed.replaceSelection(`${leading}[[${core}]]${trailing}`);
+            ctx.preWrapped = true;
+          }
         }
       }
-    }
 
-    this.setPendingSelectionContext(ctx);
-  } else {
-    this.setPendingSelectionContext(null);
+      this.setPendingSelectionContext(ctx);
+    } else {
+      this.setPendingSelectionContext(null);
+    }
   }
-}
 
 
   /** Convert “some/folder/file.md” → “some-folder-file” (lowercased, no extension). */
@@ -871,7 +874,7 @@ public setPendingSeed(s: string | null, preWrap: boolean = false) {
     }
   }
 
-  public async runSBTemplate(templatePath: string) {
+  public async runSBTemplate(templatePath: string, originLeaf?: WorkspaceLeaf) {
     const tpl = this.app.vault.getAbstractFileByPath(templatePath);
     if (!(tpl instanceof TFile)) { new Notice(`⚠️ Template not found: ${templatePath}`); return; }
 
@@ -941,7 +944,10 @@ public setPendingSeed(s: string | null, preWrap: boolean = false) {
     }
 
     // We have a selection → run template and then replace the selection with a link
-    const originView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const originView = originLeaf?.view instanceof MarkdownView
+      ? (originLeaf.view as MarkdownView)
+      : this.app.workspace.getActiveViewOfType(MarkdownView);
+
     const srcPath: string | null = pending?.filePath || originView?.file?.path || null;
     if (!srcPath) {
       // No source to modify; run and exit
@@ -980,9 +986,34 @@ public setPendingSeed(s: string | null, preWrap: boolean = false) {
     }
     try { if (wrapperFile) await this.app.vault.delete(wrapperFile); } catch { }
 
-
+    // ----------------- new template note behavior -----------------
     const created = await createdFilePromise;
     if (!created) return;
+try {
+  const txt = await this.app.vault.read(created);
+  if (!txt.trim()) return;
+} catch {
+  return; // file already gone
+}
+    const behavior = this.settings?.templateOpenMode ?? "default";
+
+    if (behavior === "background") {
+      console.log("🟡 Background mode triggered for:", created.path);
+
+      // Capture the active leaf right after creation (before template finishes rename)
+      const newLeaf = this.app.workspace.activeLeaf;
+
+      // Give Templater a moment to finish its work, then close that leaf
+      setTimeout(() => {
+        if (newLeaf?.view instanceof MarkdownView) {
+          console.log("🔴 Detaching leaf (final file was):", newLeaf.view.file?.path);
+          newLeaf.detach();
+        }
+      }, 100);
+    } else if (behavior === "current") {
+      if (originView) this.app.workspace.setActiveLeaf(originView.leaf, { focus: true });
+    }
+
 
     // Build the [[link]] to drop in place of the selection (preserve outer whitespace)
     const alreadyLinked = /^\s*\[\[[\s\S]*\]\]\s*$/.test(rawSel);
@@ -1013,7 +1044,7 @@ public setPendingSeed(s: string | null, preWrap: boolean = false) {
         }
       } catch { /* ignore */ }
     }
- 
+
     // Fallback: first exact occurrence
     if (updated == null) {
       const idx = cur.indexOf(rawSel);
@@ -1024,6 +1055,7 @@ public setPendingSeed(s: string | null, preWrap: boolean = false) {
       await this.app.vault.modify(tf, updated);
     }
   }
+
 
 
   private pendingSeed: string | null = null;
