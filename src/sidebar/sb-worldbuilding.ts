@@ -8,26 +8,46 @@ import {
   Setting,
   TFolder,
   setIcon,
-  App
+  App,
 } from 'obsidian';
 import { SPELLBOOK_VIEW_TYPE } from './sb-spellbook';
 
 function getToolkit(app: App): any {
+  const pm: any = (app as any).plugins;
   return (
-    (app as any).plugins.getPlugin('vvunderlore-toolkit') ||
-    (app as any).plugins.plugins?.['vvunderlore-toolkit']
+    pm.getPlugin?.('vvunderlore-toolkit-plugin') ||
+    pm.getPlugin?.('vvunderlore-toolkit') ||
+    Object.values(pm.plugins || {}).find((p: any) =>
+      p?.manifest?.id?.startsWith?.('vvunderlore-toolkit')
+    )
   );
 }
 
+
 export const SIDEBAR_VIEW_TYPE = 'vvunderlore-templates-sidebar';
 
-const TEMPLATE_BUTTONS: { label: string; path: string }[] = [
+function getFullCommandId(app: App, shortId: string): string {
+  if (shortId.includes(':')) return shortId;
+  const registry: Record<string, any> = (app as any).commands?.commands || {};
+  const match = Object.keys(registry).find(k => k.endsWith(`:${shortId}`));
+  if (match) return match;
+  const plugin = getToolkit(app);
+  return plugin?.manifest?.id ? `${plugin.manifest.id}:${shortId}` : shortId;
+}
+
+function captureSelectionOrWord(app: App, sidebar: SidebarTemplatesView) {
+  return sidebar.lastSelection;
+}
+
+type TemplateButton = { label: string; path: string } | { label: string; commandId: string };
+
+const TEMPLATE_BUTTONS: TemplateButton[] = [
   { label: 'New Adventure', path: 'Extras/Templates/newadventure_template.md' },
-  { label: 'New PC', path: 'Extras/Templates/playercharacter_template.md' },
-  { label: 'New NPC', path: 'Extras/Templates/npc_template.md' },
-  { label: 'New Item', path: 'Extras/Templates/newitem_template.md' },
-  { label: 'New Place', path: 'Extras/Templates/newplace_template.md' },
-  { label: 'New Creature', path: 'Extras/Templates/newcreature_template.md' },
+  { label: 'New PC', commandId: 'vv-new-pc' },
+  { label: 'New NPC', commandId: 'vv-new-npc' },
+  { label: 'New Item', commandId: 'vv-new-item' },
+  { label: 'New Place', commandId: 'vv-new-place' },
+  { label: 'New Creature', commandId: 'vv-new-creature' },
 ];
 
 const SCHOOL_ABBR: Record<string, string> = {
@@ -65,6 +85,15 @@ export class SidebarTemplatesView extends ItemView {
   getViewType() { return SIDEBAR_VIEW_TYPE; }
   getDisplayText() { return 'VVorldbuiling'; }
   getIcon() { return 'mapmaking'; }
+
+  public lastSelection: {
+  text: string;
+  filePath: string;
+  from: CodeMirror.Position;
+  to: CodeMirror.Position;
+  preText: string;
+} | null = null;
+
 
   private spellSortKey: 'name' | 'level' | 'school' | 'damage' = 'name';
   private spellSortDir: 1 | -1 = 1;
@@ -268,6 +297,19 @@ export class SidebarTemplatesView extends ItemView {
   async onOpen() {
     this.contentEl.empty();
 
+    this.registerEvent(
+  (this.app.workspace as any).on('editor-selection-change', (editor: any, view: any) => {
+    const text = editor.getSelection();
+    this.lastSelection = {
+      text,
+      filePath: view.file.path,
+      from: editor.getCursor('from'),
+      to: editor.getCursor('to'),
+      preText: editor.getValue(),
+    };
+  })
+);
+
     this.picks = [];
     this.addBtnByPath.clear();
 
@@ -277,12 +319,30 @@ export class SidebarTemplatesView extends ItemView {
     // template buttons
     const btnContainer = this.contentEl.createDiv();
     btnContainer.addClass("sb-btn");
-    for (const { label, path } of TEMPLATE_BUTTONS) {
-      const btn = new ButtonComponent(btnContainer)
-        .setButtonText(label)
-        .onClick(() => this.runTemplate(path));
+
+    for (const def of TEMPLATE_BUTTONS) {
+      const btn = new ButtonComponent(btnContainer).setButtonText(def.label);
       btn.buttonEl.style.flex = '1';
       btn.buttonEl.style.minWidth = '120px';
+
+btn.buttonEl.addEventListener('pointerdown', () => {
+  const plugin = getToolkit(this.app);
+  const ctx = captureSelectionOrWord(this.app, this);
+  if (ctx) plugin?.setPendingSelectionContext?.(ctx);
+});
+
+// only run the command here, no selection grab
+if ('commandId' in def) {
+  btn.onClick(() => {
+    const fullId = getFullCommandId(this.app, def.commandId);
+    const cmd = this.app.commands.findCommand(fullId);
+    if (!cmd) { new Notice(`Command not found: ${fullId}`); return; }
+    this.app.commands.executeCommandById(fullId);
+  });
+} else {
+  btn.onClick(() => this.runTemplate(def.path));
+}
+
     }
     this.contentEl.createEl('hr', { attr: { style: 'margin: 12px 0;' } });
 
@@ -390,122 +450,12 @@ export class SidebarTemplatesView extends ItemView {
   }
 
   private async runTemplate(path: string) {
-    const tpl = this.app.vault.getAbstractFileByPath(path);
-    if (!(tpl instanceof TFile)) {
-      new Notice(`⚠️ Template not found: ${path}`);
-      return;
-    }
-
-    const tpObs = this.app.plugins.getPlugin('templater-obsidian') as any;
-    const tpAlt = this.app.plugins.getPlugin('templater') as any;
-    const templater = tpObs || tpAlt;
-    if (!templater) {
-      new Notice('⚠️ Could not find Templater – is it enabled?');
-      return;
-    }
-
-    const tpObj = templater.templater?.current_functions_object;
-    if (!tpObj) {
-      new Notice('⚠️ Templater API not ready—add a startup template and restart.');
-      return;
-    }
-
-    const rawSel = window.getSelection()?.toString().trim() || '';
-
-    if (rawSel) {
-      // capture the editor + exact selection up front (but don't mutate yet)
-      const srcView = this.app.workspace.getActiveViewOfType(MarkdownView);
-      const selectedText =
-        srcView?.editor.getSelection()?.trim() || rawSel;
-
-      // sanitize a filename from the selection
-      const base = selectedText.replace(/[\/:*?"<>|]/g, '').slice(0, 100);
-
-      // figure out destination as you had before
-      const TEMPLATE_DEST: Record<string, string> = {
-        'newadventure_template.md': 'Adventures',
-        'playercharacter_template.md': 'World/People/Player Characters/Active',
-        'npc_template.md': 'World/People/Non-Player Characters',
-        'newitem_template.md': 'Extras/Items',
-        'newplace_template.md': 'World/Places',
-        'newcreature_template.md': 'Bestiary',
-      };
-      const destPath = TEMPLATE_DEST[tpl['name']] || (tpl as TFile).parent!.path;
-
-      // ensure folder exists (same as before)
-      let destFolderRaw = this.app.vault.getAbstractFileByPath(destPath);
-      if (!(destFolderRaw instanceof TFolder)) {
-        try { await this.app.vault.createFolder(destPath); } catch { }
-        destFolderRaw = this.app.vault.getAbstractFileByPath(destPath);
-      }
-      if (!(destFolderRaw instanceof TFolder)) {
-        new Notice(`⚠️ Could not create folder: ${destPath}`);
-        return;
-      }
-      const destFolder = destFolderRaw as TFolder;
-
-      // run the template to create the new note
-      let newFile: TFile;
-      try {
-        newFile = await tpObj.file.create_new(
-          tpl,
-          base,
-          true,
-          destFolder
-        );
-      } catch (e) {
-        console.error('Templater.create_new failed', e);
-        new Notice('❌ Could not instantiate template.');
-        return;
-      }
-
-      // (optional) your stray merge logic here…
-
-      // Check if the template was canceled and deleted the file.
-      const stillExists = this.app.vault.getAbstractFileByPath(newFile.path) instanceof TFile;
-
-      // Only now, after success, turn the original selection into a link.
-      if (stillExists && srcView && selectedText) {
-        const ed = srcView.editor;
-        const current = ed.getValue();
-        const link = `[[${base}]]`;
-
-        // Prefer replacing the exact first occurrence of the captured text
-        if (current.includes(selectedText)) {
-          const updated = current.replace(selectedText, link);
-          await this.app.vault.modify(srcView.file!, updated);
-        } else {
-          // Fallback: if selection is still active, replace it
-          ed.replaceSelection(link);
-        }
-      }
-
-      // open the new file (only if it actually exists)
-      if (stillExists) {
-        this.app.workspace.getLeaf(true).openFile(newFile);
-      }
-
-    } else {
-      let wrapperFile: TFile;
-      try {
-        wrapperFile = await tpObj.file.create_new(
-          tpl,
-          undefined,
-          false
-        );
-      } catch (e) {
-        console.error('Error invoking Templater:', e);
-        new Notice('❌ Failed to run template; check console.');
-        return;
-      }
-
-      try {
-        await this.app.vault.delete(wrapperFile);
-      } catch (e) {
-        console.warn('Could not delete wrapper file:', e);
-      }
-    }
+    const plugin = getToolkit(this.app);
+    if (!plugin) { new Notice('⚠️ VVunderlore Toolkit plugin not found.'); return; }
+    await plugin.runSBTemplate(path); // let main.ts handle linking exactly as it already does
   }
+
+
 
   //-------+++++++++++ ADVENTURE FILTER
 

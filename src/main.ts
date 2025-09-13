@@ -9,7 +9,8 @@ import {
   Vault,
   requestUrl,
   WorkspaceLeaf,
-  addIcon
+  addIcon,
+  MarkdownView
 } from 'obsidian';
 
 import { ToolkitSettingsTab } from './settings';
@@ -234,12 +235,21 @@ interface CustomPathEntry {
   doUpdate: boolean;
 }
 
+interface PendingSelection {
+  text: string;
+  filePath: string;
+  from?: { line: number; ch: number };
+  to?: { line: number; ch: number };
+  preText?: string;
+  preWrapped?: boolean;   // NEW: we wrapped the selection in the editor already
+}
+
 export interface ManifestFileEntry {
   path: string;
   key: string;
   customOverride?: boolean;
   displayName?: string;
-  optional?: boolean; 
+  optional?: boolean;
 }
 
 export interface InstallOptions {
@@ -291,6 +301,54 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     return custom?.vaultPath ?? githubPath;
   }
 
+  private pendingSelection: PendingSelection | null = null;
+
+  public setPendingSelectionContext(ctx: PendingSelection | null) {
+    this.pendingSelection = ctx;
+  }
+  private takePendingSelectionContext(): PendingSelection | null {
+    const c = this.pendingSelection;
+    this.pendingSelection = null;
+    return c;
+  }
+
+// keep your old API working, but add a preWrap flag
+public setPendingSeed(s: string | null, preWrap: boolean = false) {
+  const v = this.app.workspace.getActiveViewOfType(MarkdownView);
+  const ed: any = v?.editor;
+  const filePath = v?.file?.path || '';
+  const sel = (s ?? ed?.getSelection?.() ?? '').toString();
+
+  if (sel && filePath) {
+    const ctx: PendingSelection = {
+      text: sel,
+      filePath,
+      from: ed?.getCursor?.('from'),
+      to: ed?.getCursor?.('to'),
+      preText: ed?.getValue?.(),
+      preWrapped: false,
+    };
+
+    if (preWrap && ed) {
+      // wrap now (preserve outer whitespace), but only if not already a wikilink
+      const alreadyLinked = /^\s*\[\[[\s\S]*\]\]\s*$/.test(sel);
+      if (!alreadyLinked) {
+        const m = sel.match(/^(\s*)([\s\S]*?)(\s*)$/);
+        const leading  = m?.[1] ?? '';
+        const core     = (m?.[2] ?? '').trim();
+        const trailing = m?.[3] ?? '';
+        if (core) {
+          ed.replaceSelection(`${leading}[[${core}]]${trailing}`);
+          ctx.preWrapped = true;
+        }
+      }
+    }
+
+    this.setPendingSelectionContext(ctx);
+  } else {
+    this.setPendingSelectionContext(null);
+  }
+}
 
 
   /** Convert “some/folder/file.md” → “some-folder-file” (lowercased, no extension). */
@@ -501,6 +559,30 @@ export default class VVunderloreToolkitPlugin extends Plugin {
 
   }
 
+  private sanitizeTitle(s: string): string {
+    return (s ?? '').replace(/[\/:*?"<>|]/g, '').trim().slice(0, 100) || 'Untitled';
+  }
+
+  private async replaceSelectionWithLink(view: MarkdownView, original: string, createdTitle: string) {
+    const ed = view.editor;
+    const current = ed.getValue();
+    const link = `[[${createdTitle}]]`;
+
+    if (original && current.includes(original)) {
+      const updated = current.replace(original, link);
+      await this.app.vault.modify(view.file!, updated);
+    } else {
+      ed.replaceSelection(link);
+    }
+  }
+
+  private async runVvTemplateCommand(templatePath: string) {
+    await this.runSBTemplate(templatePath);
+  }
+
+
+
+
   // ─── MARKER FILE CHECKS (first‐run detection) ───────────────────────
 
   private async checkMarkerFile() {
@@ -557,9 +639,12 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     // sidebars
     this.registerView(SIDEBAR_VIEW_TYPE, (leaf) => new SidebarTemplatesView(leaf));
     this.registerView(GAMEPLAY_VIEW_TYPE, (leaf) => new GameplaySidebarView(leaf));
+
+    // ******++++++ SUPER COOL HOTKEY COMMANDS SECTION--------------------------------
+
     this.addCommand({
-      id: "open-templates-sidebar",
-      name: "Open Templates Sidebar",
+      id: "open-worldbuilding-sidebar",
+      name: "Open VVorldbuilding pane",
       icon: "mapmaking",
       callback: async () => {
         let leaf: WorkspaceLeaf | undefined | null =
@@ -577,9 +662,10 @@ export default class VVunderloreToolkitPlugin extends Plugin {
         this.app.workspace.revealLeaf(leaf);
       },
     });
+
     this.addCommand({
       id: "open-gameplay-sidebar",
-      name: "Open Gameplay Sidebar",
+      name: "Open Gameplay pane",
       icon: "gameplay",
       callback: async () => {
         let leaf: WorkspaceLeaf | undefined | null =
@@ -597,6 +683,64 @@ export default class VVunderloreToolkitPlugin extends Plugin {
         this.app.workspace.revealLeaf(leaf);
       },
     });
+
+    this.addCommand({
+      id: 'vv-new-pc',
+      name: 'VVunderlore: New Player Character',
+      callback: async () => {
+        await this.runSBTemplate('Extras/Templates/playercharacter_template.md');
+      },
+    });
+    this.addCommand({
+      id: 'vv-new-npc',
+      name: 'VVunderlore: New NPC',
+      callback: async () => {
+        await this.runSBTemplate('Extras/Templates/npc_template.md');
+      },
+    });
+    this.addCommand({
+      id: 'vv-new-item',
+      name: 'VVunderlore: New Item',
+      callback: async () => {
+        await this.runSBTemplate('Extras/Templates/newitem_template.md');
+      },
+    });
+    this.addCommand({
+      id: 'vv-new-creature',
+      name: 'VVunderlore: New Creature',
+      callback: async () => {
+        await this.runSBTemplate('Extras/Templates/newcreature_template.md');
+      },
+    });
+    this.addCommand({
+      id: 'vv-new-place',
+      name: 'VVunderlore: New Place',
+      callback: async () => {
+        await this.runSBTemplate('Extras/Templates/newplace_template.md');
+      },
+    });
+
+
+    this.addCommand({
+      id: 'vv-check-updates',
+      name: 'VVunderlore: Run — Check for Toolkit Updates',
+      callback: async () => { await this.checkForUpdates(); },
+    });
+
+    this.addCommand({
+      id: 'vv-force-update',
+      name: 'VVunderlore: Run — Force Update',
+      callback: async () => { await this.forceUpdatePreviewAndConfirm(); },
+    });
+
+    // this.addCommand({
+    //   id: 'vv-migrate-scan',
+    //   name: 'VVunderlore: Run — Migration Auditor (Scan)',
+    //   callback: async () => { await this.openMigrationAuditorScan(); },
+    // });
+
+
+    // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     this.addRibbonIcon('scroll-text', 'VVunderlore Sidebars', async () => {
       await this.openSidebar(SIDEBAR_VIEW_TYPE, 'right');
@@ -631,7 +775,6 @@ export default class VVunderloreToolkitPlugin extends Plugin {
       }
     }, 250);
 
-    // ─── AUTO-UPDATE TIMER & EVENTS ─────────────────────────────────────
     this.scheduleAutoUpdateCheck();
     this.registerEvent(
       this.app.vault.on('delete', () =>
@@ -645,6 +788,37 @@ export default class VVunderloreToolkitPlugin extends Plugin {
         (this.app as any).commands.executeCommandById('dataview:clear-cache')
       )
     );
+    this.registerEvent(
+      this.app.workspace.on('editor-menu', (menu, editor, view) => {
+        const sel = editor.getSelection().trim();
+        if (!sel.length) return;
+
+        menu.addItem(i => i
+          .setTitle('VVunderlore: New NPC from selection')
+          .setIcon('user-plus')
+          .onClick(async () => {
+            this.setPendingSeed(sel);
+            await this.runSBTemplate('Extras/Templates/npc_template.md');
+          }));
+
+        menu.addItem(i => i
+          .setTitle('VVunderlore: New Item from selection')
+          .setIcon('plus-circle')
+          .onClick(async () => {
+            this.setPendingSeed(sel);
+            await this.runSBTemplate('Extras/Templates/item_template.md');
+          }));
+
+        menu.addItem(i => i
+          .setTitle('VVunderlore: New Place from selection')
+          .setIcon('plus-circle')
+          .onClick(async () => {
+            this.setPendingSeed(sel);
+            await this.runSBTemplate('Extras/Templates/place_template.md');
+          }));
+      })
+    );
+
 
     // ─── FIRST-RUN “Welcome.md” ─────────────────────────────────────────
     if (this.settings.isFirstRun === 'no') {
@@ -683,6 +857,183 @@ export default class VVunderloreToolkitPlugin extends Plugin {
       .setViewState({ type: SIDEBAR_VIEW_TYPE, active: true });
   }
 
+  private async getUniqueNewNotePath(basePath: string): Promise<string> {
+    const adapter = this.app.vault.adapter;
+    if (!(await adapter.exists(basePath))) return basePath;
+    const dot = basePath.lastIndexOf('.');
+    const stem = dot >= 0 ? basePath.slice(0, dot) : basePath;
+    const ext = dot >= 0 ? basePath.slice(dot) : '';
+    let i = 2;
+    while (true) {
+      const candidate = `${stem} (${i})${ext}`;
+      if (!(await adapter.exists(candidate))) return candidate;
+      i++;
+    }
+  }
+
+  public async runSBTemplate(templatePath: string) {
+    const tpl = this.app.vault.getAbstractFileByPath(templatePath);
+    if (!(tpl instanceof TFile)) { new Notice(`⚠️ Template not found: ${templatePath}`); return; }
+
+    const tpObs = (this.app as any).plugins.getPlugin('templater-obsidian') as any;
+    const tpAlt = (this.app as any).plugins.getPlugin('templater') as any;
+    const templater = tpObs || tpAlt;
+    if (!templater) { new Notice('⚠️ Could not find Templater – is it enabled?'); return; }
+
+    const tpObj = templater.templater?.current_functions_object;
+    if (!tpObj) { new Notice('⚠️ Templater API not ready—add a startup template and restart.'); return; }
+
+    const srcView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    srcView?.editor?.focus();
+    const pending = this.takePendingSelectionContext?.() ?? null;
+    const legacySeed = typeof (this as any).takePendingSeed === 'function'
+      ? (this as any).takePendingSeed()
+      : null;
+
+    // Build a stable snapshot of the source doc and positions (survives focus loss)
+    const ed: any = srcView?.editor ?? null;
+    const baseText: string =
+      pending?.preText ??
+      (ed ? ed.getValue() : (srcView?.file ? await this.app.vault.read(srcView.file) : ''));
+
+    const from = pending?.from ?? ed?.getCursor?.('from');
+    const to = pending?.to ?? ed?.getCursor?.('to');
+
+    function posToOffset(text: string, pos: { line: number; ch: number }) {
+      let off = 0, i = 0, line = 0;
+      while (line < pos.line && i < text.length) {
+        const nl = text.indexOf('\n', i);
+        if (nl === -1) return text.length;
+        off = nl + 1; i = off; line++;
+      }
+      return off + pos.ch;
+    }
+
+    // Prefer exact slice by offsets; fall back to string-based sources
+    let rawSel = '';
+    if (baseText && from && to) {
+      try {
+        const startOff = posToOffset(baseText, from);
+        const endOff = posToOffset(baseText, to);
+        if (endOff >= startOff) rawSel = baseText.slice(startOff, endOff);
+      } catch { /* ignore */ }
+    }
+    if (!rawSel) {
+      rawSel =
+        (pending?.text && pending.text.length ? pending.text : '') ||
+        (legacySeed || '') ||
+        (srcView?.editor?.getSelection?.() ?? '') ||
+        (window.getSelection()?.toString() ?? '');
+    }
+
+    // If nothing was selected, just run the template (your existing behavior)
+    if (!rawSel) {
+      let wrapperFile: TFile;
+      try {
+        wrapperFile = await tpObj.file.create_new(tpl, undefined, false);
+      } catch (e) {
+        console.error('Error invoking Templater:', e);
+        new Notice('❌ Failed to run template; check console.');
+        return;
+      }
+      try { await this.app.vault.delete(wrapperFile); } catch { }
+      return;
+    }
+
+    // We have a selection → run template and then replace the selection with a link
+    const originView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const srcPath: string | null = pending?.filePath || originView?.file?.path || null;
+    if (!srcPath) {
+      // No source to modify; run and exit
+      let wrapperFile: TFile | null = null;
+      try {
+        wrapperFile = await tpObj.file.create_new(tpl, undefined, false);
+      } catch (e) {
+        console.error('Templater.create_new (no srcPath) failed', e);
+        new Notice('❌ Could not run template.');
+      }
+      // only try to delete if we actually created it
+      try { if (wrapperFile) await this.app.vault.delete(wrapperFile); } catch { }
+      return;
+    }
+
+    // Wait for the new note to be created
+    const startMs = Date.now();
+    const createdFilePromise = new Promise<TFile | null>((resolve) => {
+      const ref = this.app.vault.on('create', (af) => {
+        if (af instanceof TFile && af.extension === 'md' && af.stat.ctime >= startMs) {
+          this.app.vault.offref(ref);
+          resolve(af);
+        }
+      });
+      setTimeout(() => { this.app.vault.offref(ref); resolve(null); }, 6000);
+    });
+
+    // --- later, after you set up createdFilePromise
+    let wrapperFile: TFile | null = null;
+    try {
+      wrapperFile = await tpObj.file.create_new(tpl, undefined, false);
+    } catch (e) {
+      console.error('Templater.create_new (wrapper) failed', e);
+      new Notice('❌ Could not run template.');
+      return;
+    }
+    try { if (wrapperFile) await this.app.vault.delete(wrapperFile); } catch { }
+
+
+    const created = await createdFilePromise;
+    if (!created) return;
+
+    // Build the [[link]] to drop in place of the selection (preserve outer whitespace)
+    const alreadyLinked = /^\s*\[\[[\s\S]*\]\]\s*$/.test(rawSel);
+    let wrapped = rawSel;
+    if (!alreadyLinked) {
+      const m = rawSel.match(/^(\s*)([\s\S]*?)(\s*)$/) as RegExpMatchArray;
+      const leading = m?.[1] ?? '';
+      const core = (m?.[2] ?? '').trim();
+      const trailing = m?.[3] ?? '';
+      wrapped = core.length ? `${leading}[[${core}]]${trailing}` : rawSel;
+    }
+
+    const tf = this.app.vault.getAbstractFileByPath(srcPath) as TFile | null;
+    if (!tf) return;
+    const cur = await this.app.vault.read(tf);
+
+    // Try offset-based replacement first (only if the slice still matches)
+    let updated: string | null = null;
+    if (baseText && from && to) {
+      try {
+        const startOff = posToOffset(baseText, from);
+        const endOff = posToOffset(baseText, to);
+        if (endOff >= startOff) {
+          const slice = cur.slice(startOff, endOff);
+          if (slice === rawSel) {
+            updated = cur.slice(0, startOff) + wrapped + cur.slice(endOff);
+          }
+        }
+      } catch { /* ignore */ }
+    }
+ 
+    // Fallback: first exact occurrence
+    if (updated == null) {
+      const idx = cur.indexOf(rawSel);
+      if (idx >= 0) updated = cur.slice(0, idx) + wrapped + cur.slice(idx + rawSel.length);
+    }
+
+    if (updated != null && updated !== cur) {
+      await this.app.vault.modify(tf, updated);
+    }
+  }
+
+
+  private pendingSeed: string | null = null;
+  private takePendingSeed(): string | null {
+    const s = this.pendingSeed;
+    this.pendingSeed = null;
+    return s;
+  }
+
+
   private async openSidebar(viewType: string, side: 'left' | 'right'): Promise<void> {
     const ws = this.app.workspace;
     const existing = ws.getLeavesOfType(viewType)[0];
@@ -700,6 +1051,8 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     await leaf.setViewState({ type: viewType, active: true });
     ws.revealLeaf(leaf);
   }
+
+
 
   // ─── BACKUP & UNDO ────────────────────────────────────────────────────
 

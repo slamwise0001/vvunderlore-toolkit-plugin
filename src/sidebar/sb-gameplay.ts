@@ -618,12 +618,13 @@ export class GameplaySidebarView extends ItemView {
 
             const paint = (arr: string[]) => {
                 list.empty();
-                list.innerHTML = (arr.length ? arr : ["—"])
-                    .map((s) => {
-                        const m = String(s).match(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/);
-                        return m ? linkTo(m[1], m[2]) : s;
-                    })
-                    .join(" , ");
+                const items = (arr.length ? arr : ["—"])
+                    .map(s => String(s).trim())
+                    .map(s => {
+                        const m = s.match(/\[\[([^|\]]+)(?:\|([^\]]+))?\]\]/);
+                        return m ? linkTo(m[1].trim(), m[2]?.trim()) : s;
+                    });
+                list.innerHTML = items.join(", ");
             };
 
             paint(read());
@@ -872,7 +873,7 @@ export class GameplaySidebarView extends ItemView {
         for (const k of keys) {
             const v = fm?.[k];
             if (!v) continue;
-            if (Array.isArray(v)) return v.map(x => String(x));
+            if (Array.isArray(v)) return v.map(x => String(x).trim()).filter(Boolean);
             if (typeof v === "string") {
                 // try JSON or comma list
                 try { const j = JSON.parse(v); if (Array.isArray(j)) return j.map(String); } catch { }
