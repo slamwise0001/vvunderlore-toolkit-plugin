@@ -874,7 +874,7 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     }
   }
 
-  public async runSBTemplate(templatePath: string, originLeaf?: WorkspaceLeaf) {
+  public async runSBTemplate(templatePath: string) {
     const tpl = this.app.vault.getAbstractFileByPath(templatePath);
     if (!(tpl instanceof TFile)) { new Notice(`⚠️ Template not found: ${templatePath}`); return; }
 
@@ -944,10 +944,7 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     }
 
     // We have a selection → run template and then replace the selection with a link
-    const originView = originLeaf?.view instanceof MarkdownView
-      ? (originLeaf.view as MarkdownView)
-      : this.app.workspace.getActiveViewOfType(MarkdownView);
-
+    const originView = this.app.workspace.getActiveViewOfType(MarkdownView);
     const srcPath: string | null = pending?.filePath || originView?.file?.path || null;
     if (!srcPath) {
       // No source to modify; run and exit
@@ -986,33 +983,28 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     }
     try { if (wrapperFile) await this.app.vault.delete(wrapperFile); } catch { }
 
-    // ----------------- new template note behavior -----------------
-    const created = await createdFilePromise;
-    if (!created) return;
-try {
-  const txt = await this.app.vault.read(created);
-  if (!txt.trim()) return;
-} catch {
-  return; // file already gone
-}
-    const behavior = this.settings?.templateOpenMode ?? "default";
+// ----------------- new template note behavior -----------------
+const created = await createdFilePromise;
+if (!created) return;
 
-    if (behavior === "background") {
-      console.log("🟡 Background mode triggered for:", created.path);
+const behavior = this.settings?.templateOpenMode ?? "default";
 
-      // Capture the active leaf right after creation (before template finishes rename)
-      const newLeaf = this.app.workspace.activeLeaf;
+if (behavior === "background") {
+  console.log("🟡 Background mode triggered for:", created.path);
 
-      // Give Templater a moment to finish its work, then close that leaf
-      setTimeout(() => {
-        if (newLeaf?.view instanceof MarkdownView) {
-          console.log("🔴 Detaching leaf (final file was):", newLeaf.view.file?.path);
-          newLeaf.detach();
-        }
-      }, 100);
-    } else if (behavior === "current") {
-      if (originView) this.app.workspace.setActiveLeaf(originView.leaf, { focus: true });
+  // Capture the active leaf right after creation (before template finishes rename)
+  const newLeaf = this.app.workspace.activeLeaf;
+
+  // Give Templater a moment to finish its work, then close that leaf
+  setTimeout(() => {
+    if (newLeaf?.view instanceof MarkdownView) {
+      console.log("🔴 Detaching leaf (final file was):", newLeaf.view.file?.path);
+      newLeaf.detach();
     }
+  }, 100);
+} else if (behavior === "current") {
+  if (originView) this.app.workspace.setActiveLeaf(originView.leaf, { focus: true });
+}
 
 
     // Build the [[link]] to drop in place of the selection (preserve outer whitespace)

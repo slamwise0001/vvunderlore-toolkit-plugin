@@ -463,12 +463,13 @@ for (const def of TEMPLATE_BUTTONS) {
     }
   }
 
-  private async runTemplate(path: string, originLeaf?: WorkspaceLeaf) {
-    const plugin = getToolkit(this.app);
-    if (!plugin) { new Notice('⚠️ VVunderlore Toolkit plugin not found.'); return; }
-    await plugin.runSBTemplate(path, originLeaf);
-  }
-
+private async runTemplate(path: string, originLeaf?: WorkspaceLeaf) {
+  console.log("🟢 runTemplate called with originLeaf:", 
+    originLeaf?.view instanceof MarkdownView ? originLeaf.view.file?.path : "(none)");
+  const plugin = getToolkit(this.app);
+  if (!plugin) { new Notice('⚠️ VVunderlore Toolkit plugin not found.'); return; }
+  await plugin.runSBTemplate(path, originLeaf);
+}
 
 
   //-------+++++++++++ ADVENTURE FILTER
