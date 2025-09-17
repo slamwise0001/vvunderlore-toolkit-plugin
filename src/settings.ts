@@ -127,6 +127,11 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
+
+	private latestValueEl: HTMLElement | null = null;
+	private checkBtnEl: HTMLButtonElement | null = null;
+	private lastCheckedEl: HTMLElement | null = null;
+
 	private renderHeader(root: HTMLElement): void {
 		const header = root.createDiv();
 		header.addClass("settings-header");
@@ -481,9 +486,8 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 			this.versionValueEl.textContent = installed;
 			this.versionValueEl.addClass("vv-bold", isMatch ? "vv-success" : "vv-error");
 
-
 			const latestRow = versionInfo.createEl('div', { text: 'Latest Official Version: ' });
-			latestRow.createSpan({
+			this.latestValueEl = latestRow.createSpan({
 				text: latest,
 				attr: { style: 'font-weight: bold; color: var(--text-success);' }
 			});
@@ -498,21 +502,61 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 				text: installed !== latest ? 'Preview Update' : 'Check for Updates',
 				cls: 'mod-cta'
 			});
+
 			checkBtn.addEventListener('click', async () => {
-				if (installed !== latest) {
-					this.plugin.previewUpdatesModal();
-				} else {
+				// Re-read live values at click time
+				let installedNow = '';
+				try {
+					const ver = await this.plugin.app.vault.adapter.read('.version.json');
+					installedNow = JSON.parse(ver).version ?? '';
+				} catch { }
+
+				const latestNow = this.plugin.settings.latestToolkitVersion ?? '';
+
+				// If an update is available, open the preview on the next frame
+				if (installedNow && latestNow && installedNow !== latestNow) {
+					requestAnimationFrame(() => this.plugin.previewUpdatesModal());
+					return;
+				}
+
+				// Otherwise run a network check — safely disable the button while we do
+				const prevLabel = checkBtn.textContent || 'Check for Updates';
+				checkBtn.disabled = true;
+				checkBtn.textContent = 'Checking…';
+
+				try {
 					await this.plugin.checkForUpdates();
+					await this.updateVersionDisplay();
+
+					// Recompute the label based on the new state
+					let installedAfter = '';
+					try {
+						const ver2 = await this.plugin.app.vault.adapter.read('.version.json');
+						installedAfter = JSON.parse(ver2).version ?? '';
+					} catch { }
+					const latestAfter = this.plugin.settings.latestToolkitVersion ?? '';
+
+					checkBtn.textContent =
+						installedAfter && latestAfter && installedAfter !== latestAfter
+							? 'Preview Update'
+							: 'Check for Updates';
+				} finally {
+					checkBtn.disabled = false;
 				}
 			});
+
+
 			const changelogBtn = buttonRow.createEl('button', { text: '📖 View Changelog' });
 			changelogBtn.addEventListener('click', () => {
 				new MarkdownPreviewModal(this.app, this.plugin.changelog).open();
 			});
 			if (this.plugin.settings.lastChecked) {
-				const lastChecked = versionControls.createDiv();
-				lastChecked.addClass("settings-lastchecked");
-				lastChecked.textContent = `Last checked: ${new Date(this.plugin.settings.lastChecked).toLocaleString()}`;
+				this.lastCheckedEl = versionControls.createDiv();
+				this.lastCheckedEl.addClass("settings-lastchecked");
+				this.lastCheckedEl.textContent =
+					`Last checked: ${new Date(this.plugin.settings.lastChecked).toLocaleString()}`;
+			} else {
+				this.lastCheckedEl = null;
 			}
 			//ruleset ident
 			const rulesetRow = versionInfo.createDiv();
@@ -1404,28 +1448,44 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 	async updateVersionDisplay(): Promise<void> {
 		if (!this.versionValueEl || !this.forceWarningEl) return;
 
-		// read .version.json
 		let installed = '';
 		try {
 			const ver = await this.plugin.app.vault.adapter.read('.version.json');
 			installed = JSON.parse(ver).version ?? '';
 		} catch { }
+
 		const latest = (this.plugin.settings.latestToolkitVersion ?? '').trim();
 		const isMatch = installed === latest;
 
-		// update just the version span
 		this.versionValueEl.textContent = installed || 'Not installed';
-		this.versionValueEl.addClass(isMatch ? "vv-success" : "vv-error");
+		this.versionValueEl.classList.remove('vv-success', 'vv-error');
+		this.versionValueEl.addClass(isMatch ? 'vv-success' : 'vv-error');
 
-		// clear and re-render just the warning container
+		if (this.latestValueEl) {
+			this.latestValueEl.textContent = latest || 'Could not fetch';
+		}
+
+		if (this.checkBtnEl) {
+			this.checkBtnEl.textContent =
+				installed && latest && installed !== latest
+					? 'Preview Update'
+					: 'Check for Updates';
+		}
+
+		if (this.lastCheckedEl && this.plugin.settings.lastChecked) {
+			this.lastCheckedEl.textContent =
+				`Last checked: ${new Date(this.plugin.settings.lastChecked).toLocaleString()}`;
+		}
+
 		this.forceWarningEl.empty();
 		if (installed && latest && installed !== latest) {
 			const warn = this.forceWarningEl.createDiv({
 				text: `⚠️ New version available (${installed} → ${latest}) — use regular update instead`,
 			});
-			warn.addClass("vv-small", "vv-muted", "vv-italic");
+			warn.addClass('vv-small', 'vv-muted', 'vv-italic');
 			warn.setAttr('title', 'Force updating while a new version is available may skip important changes.');
 		}
 	}
+
 
 }  
