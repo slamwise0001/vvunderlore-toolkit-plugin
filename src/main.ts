@@ -983,31 +983,54 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     }
     try { if (wrapperFile) await this.app.vault.delete(wrapperFile); } catch { }
 
-// ----------------- new template note behavior -----------------
-const created = await createdFilePromise;
-if (!created) return;
+    // ----------------- new template note behavior -----------------
+    const created = await createdFilePromise;
+    if (!created) return;
 
-const behavior = this.settings?.templateOpenMode ?? "default";
+    const newNoteFile: TFile | null =
+  (this.app.workspace.activeLeaf?.view instanceof MarkdownView)
+    ? (this.app.workspace.activeLeaf.view.file as TFile)
+    : created;
 
-if (behavior === "background") {
-  console.log("🟡 Background mode triggered for:", created.path);
+    const behavior = this.settings?.templateOpenMode ?? "default";
 
-  // Capture the active leaf right after creation (before template finishes rename)
-  const newLeaf = this.app.workspace.activeLeaf;
+    if (behavior === "background") {
 
-  // Give Templater a moment to finish its work, then close that leaf
-  setTimeout(() => {
-    if (newLeaf?.view instanceof MarkdownView) {
-      console.log("🔴 Detaching leaf (final file was):", newLeaf.view.file?.path);
-      newLeaf.detach();
+      const newLeaf = this.app.workspace.activeLeaf;
+
+      setTimeout(() => {
+        if (newLeaf?.view instanceof MarkdownView) {
+          newLeaf.detach();
+        }
+      }, 100);
+    } else if (behavior === "current") {
+      const leaves = this.app.workspace.getLeavesOfType('markdown');
+      const createdLeaf =
+        leaves.find(l => (l.view as any)?.file === created)
+        ?? leaves.find(l => (l.view as any)?.file?.path === created.path)
+        ?? null;
+
+      if (createdLeaf) {
+        createdLeaf.detach();
+      }
+
+      const originLeaf =
+        leaves.find(l => (l.view as any)?.file?.path === srcPath)
+        ?? originView?.leaf
+        ?? this.app.workspace.getActiveViewOfType(MarkdownView)?.leaf;
+
+      if (originLeaf) {
+        this.app.workspace.setActiveLeaf(originLeaf, { focus: true });
+      }
     }
-  }, 100);
-} else if (behavior === "current") {
-  if (originView) this.app.workspace.setActiveLeaf(originView.leaf, { focus: true });
-}
 
+await new Promise(r => setTimeout(r, 150)); // let template finish writing
+try {
+  if (!newNoteFile || !(await this.app.vault.adapter.exists(newNoteFile.path))) return;
+  const txt = await this.app.vault.adapter.read(newNoteFile.path);
+  if (!txt || !txt.trim()) return;
+} catch { return; }
 
-    // Build the [[link]] to drop in place of the selection (preserve outer whitespace)
     const alreadyLinked = /^\s*\[\[[\s\S]*\]\]\s*$/.test(rawSel);
     let wrapped = rawSel;
     if (!alreadyLinked) {
