@@ -24,6 +24,7 @@ import { ConfirmFreshInstallModal } from './firstinstallconfirm';
 import "../styles.css";
 import { SidebarTemplatesView, SIDEBAR_VIEW_TYPE } from './sidebar/sb-worldbuilding';
 import { GameplaySidebarView, GAMEPLAY_VIEW_TYPE } from './sidebar/sb-gameplay';
+import { updateModalFormsFromRepo } from './modalFormsUpdater';
 
 function getRulesetDisplayName(key: string): string {
   const ed = AVAILABLE_EDITIONS.find(e => e.id === key);
@@ -409,6 +410,8 @@ export default class VVunderloreToolkitPlugin extends Plugin {
           await this.updateEntryFromManifest(manifestEntry, true);
         }
       }
+
+
 
       // 4) Bump version.json + settings
       await this.updateVersionFile();
@@ -988,9 +991,9 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     if (!created) return;
 
     const newNoteFile: TFile | null =
-  (this.app.workspace.activeLeaf?.view instanceof MarkdownView)
-    ? (this.app.workspace.activeLeaf.view.file as TFile)
-    : created;
+      (this.app.workspace.activeLeaf?.view instanceof MarkdownView)
+        ? (this.app.workspace.activeLeaf.view.file as TFile)
+        : created;
 
     const behavior = this.settings?.templateOpenMode ?? "default";
 
@@ -1024,12 +1027,12 @@ export default class VVunderloreToolkitPlugin extends Plugin {
       }
     }
 
-await new Promise(r => setTimeout(r, 150)); // let template finish writing
-try {
-  if (!newNoteFile || !(await this.app.vault.adapter.exists(newNoteFile.path))) return;
-  const txt = await this.app.vault.adapter.read(newNoteFile.path);
-  if (!txt || !txt.trim()) return;
-} catch { return; }
+    await new Promise(r => setTimeout(r, 150)); // let template finish writing
+    try {
+      if (!newNoteFile || !(await this.app.vault.adapter.exists(newNoteFile.path))) return;
+      const txt = await this.app.vault.adapter.read(newNoteFile.path);
+      if (!txt || !txt.trim()) return;
+    } catch { return; }
 
     const alreadyLinked = /^\s*\[\[[\s\S]*\]\]\s*$/.test(rawSel);
     let wrapped = rawSel;
@@ -1575,6 +1578,12 @@ try {
         if (!(await this.app.vault.adapter.exists(entry.path))) {
           await this.app.vault.createFolder(entry.path);
         }
+      }
+
+      try {
+        await updateModalFormsFromRepo(this.app);
+      } catch (e) {
+        console.warn('Modal Forms updater (force selection) failed:', e);
       }
 
       // 4) Bump version
@@ -2205,6 +2214,12 @@ try {
         this.enableHighlight();
       }
 
+      try {
+        await updateModalFormsFromRepo(this.app);
+      } catch (e) {
+        console.warn('Modal Forms updater (full repo) failed:', e);
+      }
+
       new Notice('✅ VVunderlore Toolkit successfully installed!');
     } catch (err) {
       console.error('❌ updateFullToolkitRepo() error:', err);
@@ -2248,6 +2263,12 @@ try {
         if (!(await this.app.vault.adapter.exists(folder.path))) {
           await this.app.vault.createFolder(folder.path);
         }
+      }
+
+      try {
+        await updateModalFormsFromRepo(this.app);
+      } catch (e) {
+        console.warn('Modal Forms updater (selected content) failed:', e);
       }
 
       await this.updateVersionFile();
@@ -2497,6 +2518,12 @@ try {
       ];
       // this won’t resolve until _all_ parsers have finished writing their MD files
       await Promise.all(parseJobs);
+
+      try {
+        await updateModalFormsFromRepo(this.app);
+      } catch (e) {
+        console.warn('Modal Forms updater (first-time install) failed:', e);
+      }
 
       // 4) Post-install housekeeping
       const marker = ".vvunderlore_installed";
