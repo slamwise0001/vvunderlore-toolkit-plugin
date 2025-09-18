@@ -59,7 +59,7 @@ export interface MFMergeReport {
 /** Sensible defaults you can tweak */
 const DEFAULTS: Required<MFUpdaterOptions> = {
   upstreamUrl:
-    "https://raw.githubusercontent.com/slamwise0001/VVunderlore-Toolkit-Full/main/Extras/ModalForms/data.json",
+    "https://raw.githubusercontent.com/slamwise0001/VVunderlore-Toolkit-Full/main/.obsidian/plugins/modalforms/data.json",
   ownedFormNames: [
     "next-session-date",
     "new-creature",
