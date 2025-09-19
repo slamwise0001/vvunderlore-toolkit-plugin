@@ -122,6 +122,31 @@ class MarkdownPreviewModal extends Modal {
 	}
 }
 
+function wireRotate(detailsEl: HTMLDetailsElement, iconEl: HTMLElement) {
+  const apply = () => iconEl.classList.toggle('vv-rotated', detailsEl.open);
+  apply(); // set initial state
+  detailsEl.addEventListener('toggle', apply);
+}
+
+// robust keep-open with one-time listener + clear initial state
+function keepOpen(details: HTMLDetailsElement, key: string, opts?: { defaultOpen?: boolean }) {
+  const { defaultOpen = false } = opts || {};
+  const ls = window.localStorage;
+
+  // 1) apply initial state once, deterministically
+  const stored = ls.getItem(key);          // '1' | '0' | null
+  details.open = stored === '1' || (stored === null && defaultOpen);
+
+  // 2) avoid stacking multiple listeners on re-render
+  if (!(details as any)._vvKeepOpenBound) {
+    details.addEventListener('toggle', () => {
+      try { ls.setItem(key, details.open ? '1' : '0'); } catch {}
+    });
+    (details as any)._vvKeepOpenBound = true;
+  }
+}
+
+
 // The full settings tab.
 export class ToolkitSettingsTab extends PluginSettingTab {
 	plugin: VVunderloreToolkitPlugin;
@@ -485,14 +510,14 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 			const vaultRow = versionInfo.createDiv();
 			vaultRow.appendText('Vault Toolkit Version: ');
 
-			this.versionValueEl = vaultRow.createSpan();  // 🔥 save ref
+			this.versionValueEl = vaultRow.createSpan(); 
 			this.versionValueEl.textContent = installed;
 			this.versionValueEl.addClass("vv-bold", isMatch ? "vv-success" : "vv-error");
 
 			const latestRow = versionInfo.createEl('div', { text: 'Latest Official Version: ' });
 			this.latestValueEl = latestRow.createSpan({
 				text: latest,
-				attr: { style: 'font-weight: bold; color: var(--text-success);' }
+				attr: { style: 'font-weight: bold;' }
 			});
 
 			const versionControls = versionRow.createDiv();
@@ -576,6 +601,7 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 
 			/** ─── FIX YOUR VAULT SECTION (collapsible, fixed‐icon) ─── */
 			const fixDetails = containerEl.createEl('details', { cls: 'vk-section' });
+			keepOpen(fixDetails as HTMLDetailsElement, 'vv:fix');
 
 			// ─── Replace your old fixHeader with this <summary> ──────────────────────────
 			const fixHeader = fixDetails.createEl('summary', { cls: 'vk-section-header' });
@@ -611,18 +637,17 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 			});
 
 			// ── Right side: static toggle icon (rotates in place only) ──────────────────
-			const fixToggleIcon = fixHeaderRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
-			Object.assign(fixToggleIcon.style, {
-				fontWeight: 'bold',
-				display: 'inline-block',
-				transition: 'transform 0.2s ease',
-				transformOrigin: '50% 50%', // Rotate around its own center
-				userSelect: 'none',
-				transform: fixDetails.open ? 'rotate(0deg)' : 'rotate(180deg)',
-			});
-			fixDetails.ontoggle = () => {
-				fixToggleIcon.addClass("vv-rotated");
-			};
+const fixToggleIcon = fixHeaderRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
+// keep styles if you want, but rotation is handled by the class now:
+Object.assign(fixToggleIcon.style, {
+  fontWeight: 'bold',
+  display: 'inline-block',
+  transition: 'transform 0.2s ease',
+  transformOrigin: '50% 50%',
+  userSelect: 'none',
+});
+// rotate based on <details open>
+wireRotate(fixDetails as HTMLDetailsElement, fixToggleIcon);
 
 			// ─── Body (same as before, just indented under <details>) ───────────────────
 			const fixBody = fixDetails.createDiv({ cls: 'vk-section-body' });
@@ -720,6 +745,8 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 
 			// ─── BACKUP SECTION ────────────────────────────────────
 			const backupDetails = containerEl.createEl('details', { cls: 'vk-section' });
+			keepOpen(backupDetails as HTMLDetailsElement, 'vv:backup');
+
 
 			// Summary block: stacked column layout
 			const backupSummary = backupDetails.createEl('summary', { cls: 'vk-section-header' });
@@ -757,22 +784,15 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 				attr: { style: 'margin-top: 0.25em;' },
 			});
 
-			// Right: collapse icon
-			const backupVvIcon = backupTitleRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
-
-			Object.assign(backupVvIcon.style, {
-				fontWeight: 'bold',
-				display: 'inline-block',
-				transition: 'transform 0.2s ease',
-				transformOrigin: '50% 50%',
-				userSelect: 'none',
-				transform: backupDetails.open ? 'rotate(0deg)' : 'rotate(180deg)',
-			});
-
-			// Collapse rotation behavior
-			backupDetails.ontoggle = () => {
-				backupVvIcon.addClass("vv-rotated");
-			};
+const backupVvIcon = backupTitleRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
+Object.assign(backupVvIcon.style, {
+  fontWeight: 'bold',
+  display: 'inline-block',
+  transition: 'transform 0.2s ease',
+  transformOrigin: '50% 50%',
+  userSelect: 'none',
+});
+wireRotate(backupDetails as HTMLDetailsElement, backupVvIcon);
 
 			// 2) Body
 			const backupBody = backupDetails.createDiv({ cls: 'vk-section-body' });
@@ -841,6 +861,8 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 
 			// ──────────────── CUSTOM UPDATES SECTION ────────────────
 			const customizationDetails = containerEl.createEl('details', { cls: 'vk-section' });
+			keepOpen(customizationDetails as HTMLDetailsElement, 'vv:custom');
+
 
 			const customizationSummary = customizationDetails.createEl('summary', { cls: 'vk-section-header' });
 
@@ -876,19 +898,16 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 				attr: { style: 'margin-top: 0.25em;' },
 			});
 
-			const customVvIcon = titleRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
+const customVvIcon = titleRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
+Object.assign(customVvIcon.style, {
+  fontWeight: 'bold',
+  display: 'inline-block',
+  transition: 'transform 0.2s ease',
+  transformOrigin: '50% 50%',
+  userSelect: 'none',
+});
+wireRotate(customizationDetails as HTMLDetailsElement, customVvIcon);
 
-			Object.assign(customVvIcon.style, {
-				fontWeight: 'bold',
-				transition: 'transform 0.2s ease',
-				transformOrigin: '50% 50%',
-				userSelect: 'none',
-				transform: customizationDetails.open ? 'rotate(0deg)' : 'rotate(180deg)',
-			});
-
-			customizationDetails.ontoggle = () => {
-				customVvIcon.addClass("vv-rotated");
-			};
 
 			const customizationBodyWrapper = customizationDetails.createDiv({
 				attr: { style: 'padding-left: 1em; padding-right: 1em;' }
@@ -1093,6 +1112,8 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 
 			// ───── TOOLKIT BEHAVIOR SECTION ─────────────────────────────────────────────
 			const behaviorDetails = containerEl.createEl('details', { cls: 'vk-section' });
+			keepOpen(behaviorDetails as HTMLDetailsElement, 'vv:behavior');
+
 
 			const behaviorSummary = behaviorDetails.createEl('summary', { cls: 'vk-section-header' });
 			Object.assign(behaviorSummary.style, {
@@ -1116,18 +1137,16 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 				attr: { style: 'margin-top:0.25em;' },
 			});
 
-			const behaviorIcon = behaviorRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
-			Object.assign(behaviorIcon.style, {
-				fontWeight: 'bold',
-				display: 'inline-block',
-				transition: 'transform 0.2s ease',
-				transformOrigin: '50% 50%',
-				userSelect: 'none',
-				transform: behaviorDetails.open ? 'rotate(0deg)' : 'rotate(180deg)',
-			});
-			behaviorDetails.ontoggle = () => {
-				behaviorIcon.addClass("vv-rotated");
-			};
+const behaviorIcon = behaviorRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
+Object.assign(behaviorIcon.style, {
+  fontWeight: 'bold',
+  display: 'inline-block',
+  transition: 'transform 0.2s ease',
+  transformOrigin: '50% 50%',
+  userSelect: 'none',
+});
+wireRotate(behaviorDetails as HTMLDetailsElement, behaviorIcon);
+
 
 			const behaviorBody = behaviorDetails.createDiv({ cls: 'vk-section-body' });
 			behaviorBody.addClass("vv-pl-md");
@@ -1276,6 +1295,8 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 
 			// ───── HIGHLIGHT SECTION ───────────────────────────────────────────────────
 			const highlightDetails = containerEl.createEl('details', { cls: 'vk-section' });
+			keepOpen(highlightDetails as HTMLDetailsElement, 'vv:highlight');
+
 
 			// 1) Build the <summary> for highlight, matching backup style:
 			const highlightSummary = highlightDetails.createEl('summary', { cls: 'vk-section-header' });
@@ -1310,21 +1331,16 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 				attr: { style: 'margin-top: 0.25em;' },
 			});
 
-			// 1c) Right side: collapsing arrow/icon
 			const hlToggleIcon = highlightTitleRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
-			Object.assign(hlToggleIcon.style, {
-				fontWeight: 'bold',
-				display: 'inline-block',
-				transition: 'transform 0.2s ease',
-				transformOrigin: '50% 50%',
-				userSelect: 'none',
-				transform: highlightDetails.open ? 'rotate(0deg)' : 'rotate(180deg)',
-			});
+Object.assign(hlToggleIcon.style, {
+  fontWeight: 'bold',
+  display: 'inline-block',
+  transition: 'transform 0.2s ease',
+  transformOrigin: '50% 50%',
+  userSelect: 'none',
+});
+wireRotate(highlightDetails as HTMLDetailsElement, hlToggleIcon);
 
-			// 1d) Make the icon rotate when the <details> opens/closes:
-			highlightDetails.ontoggle = () => {
-				hlToggleIcon.addClass("vv-rotated");
-			};
 
 			// 2) Create the body container (indented, same as backup)
 			const highlightBody = highlightDetails.createDiv({ cls: 'vk-section-body' });

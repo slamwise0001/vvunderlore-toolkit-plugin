@@ -83,6 +83,10 @@
   margin-top: 0.75em;
 }
 
+.vk-toggle-icon { display:inline-block; transform: rotate(180deg); transition: transform .2s ease; }
+.vk-toggle-icon.vv-rotated { transform: rotate(0deg); }
+
+
 
 .vk-table-wrapper {
   margin-top: 0.5em;
