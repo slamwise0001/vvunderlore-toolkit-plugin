@@ -11,6 +11,8 @@ import {
   App,
 } from 'obsidian';
 import { SPELLBOOK_VIEW_TYPE } from './sb-spellbook';
+import { ADVENTURE_CATEGORY_DEFS, getAdventureCategoryIds } from 'src/adv-categories';
+
 
 function getToolkit(app: App): any {
   const pm: any = (app as any).plugins;
@@ -148,6 +150,20 @@ export class SidebarTemplatesView extends ItemView {
       (wrap as any)._vvHoverWired = true;
       (wrap as any)._vvHoverHandler = handler;
     }
+  }
+
+  private buildIncomingRefCounts(): Map<string, number> {
+    const incoming = new Map<string, number>();
+    const resolved = this.app.metadataCache
+      .resolvedLinks as Record<string, Record<string, number>>;
+
+    for (const from in resolved) {
+      const toMap = resolved[from];
+      for (const to in toMap) {
+        incoming.set(to, (incoming.get(to) || 0) + (toMap[to] || 1));
+      }
+    }
+    return incoming;
   }
 
   private renderPicks(): void {
@@ -320,44 +336,44 @@ export class SidebarTemplatesView extends ItemView {
     const btnContainer = this.contentEl.createDiv();
     btnContainer.addClass("sb-btn");
 
-for (const def of TEMPLATE_BUTTONS) {
-  const btnEl = btnContainer.createEl("button", { text: def.label });
-  btnEl.style.flex = "1";
-  btnEl.style.minWidth = "120px";
+    for (const def of TEMPLATE_BUTTONS) {
+      const btnEl = btnContainer.createEl("button", { text: def.label });
+      btnEl.style.flex = "1";
+      btnEl.style.minWidth = "120px";
 
-  let originLeaf: WorkspaceLeaf | undefined;
+      let originLeaf: WorkspaceLeaf | undefined;
 
-  // pointerdown: capture selection + origin leaf BEFORE sidebar steals focus
-  btnEl.addEventListener("pointerdown", () => {
-    const plugin = getToolkit(this.app);
+      // pointerdown: capture selection + origin leaf BEFORE sidebar steals focus
+      btnEl.addEventListener("pointerdown", () => {
+        const plugin = getToolkit(this.app);
 
-    // capture text selection (your existing logic)
-    const ctx = captureSelectionOrWord(this.app, this);
-    if (ctx) plugin?.setPendingSelectionContext?.(ctx);
+        // capture text selection (your existing logic)
+        const ctx = captureSelectionOrWord(this.app, this);
+        if (ctx) plugin?.setPendingSelectionContext?.(ctx);
 
-    // capture origin leaf
-    originLeaf = this.app.workspace.activeLeaf ?? undefined;
-    console.log("🟣 [pointerdown] Captured originLeaf:", originLeaf?.view instanceof MarkdownView ? originLeaf.view.file?.path : "(none)");
-  });
+        // capture origin leaf
+        originLeaf = this.app.workspace.activeLeaf ?? undefined;
+        console.log("🟣 [pointerdown] Captured originLeaf:", originLeaf?.view instanceof MarkdownView ? originLeaf.view.file?.path : "(none)");
+      });
 
-  // click: run either a command or template with captured originLeaf
-  btnEl.addEventListener("click", () => {
-    if ("commandId" in def) {
-      const fullId = getFullCommandId(this.app, def.commandId);
-      const cmd = this.app.commands.findCommand(fullId);
-      if (!cmd) {
-        new Notice(`Command not found: ${fullId}`);
-        return;
-      }
-      this.app.commands.executeCommandById(fullId);
-    } else {
-      console.log("🟣 [click] Running template with originLeaf:", originLeaf?.view instanceof MarkdownView ? originLeaf.view.file?.path : "(none)");
-      this.runTemplate(def.path, originLeaf);
+      // click: run either a command or template with captured originLeaf
+      btnEl.addEventListener("click", () => {
+        if ("commandId" in def) {
+          const fullId = getFullCommandId(this.app, def.commandId);
+          const cmd = this.app.commands.findCommand(fullId);
+          if (!cmd) {
+            new Notice(`Command not found: ${fullId}`);
+            return;
+          }
+          this.app.commands.executeCommandById(fullId);
+        } else {
+          console.log("🟣 [click] Running template with originLeaf:", originLeaf?.view instanceof MarkdownView ? originLeaf.view.file?.path : "(none)");
+          this.runTemplate(def.path, originLeaf);
+        }
+      });
     }
-  });
-}
 
-    
+
     this.contentEl.createEl('hr', { attr: { style: 'margin: 12px 0;' } });
 
     //  ADVENTURE LINKS 
@@ -378,13 +394,16 @@ for (const def of TEMPLATE_BUTTONS) {
         names.forEach(n => drop.addOption(n, n));
 
         drop.onChange(async adv => {
+          // nuke any previous render
           advContainer.findAll('.vvunderlore-adventure-assets').forEach(el => el.remove());
+
           const wrapper = advContainer.createDiv({ cls: 'vvunderlore-adventure-assets' });
           if (!adv) return;
 
           const quick = wrapper.createDiv();
           quick.setAttr('style', 'display:flex;justify-content:center;gap:20px;flex-wrap:wrap;margin:6px 0 10px;');
 
+          // Adventure Hub
           const hubExactPath = `Adventures/${adv}/${adv} - Adventure Hub.md`;
           let hubFile: TFile | null = null;
 
@@ -408,13 +427,14 @@ for (const def of TEMPLATE_BUTTONS) {
             });
             const enablePreview = !!getToolkit(this.app)?.settings?.enableSidebarPreviews;
             if (enablePreview) {
-              const p = hubFile!.path /* or latest.path for sessionLink */;
+              const p = hubFile!.path;
               hubLink.classList.add('internal-link');
               hubLink.setAttr('data-href', p);
               hubLink.setAttr('href', p);
             }
           }
 
+          // Most recent session link
           const sessionDir = `Adventures/${adv}/Session Notes/`;
           const sessionFiles = this.app.vault.getFiles().filter(f => f.path.startsWith(sessionDir));
           if (sessionFiles.length) {
@@ -428,16 +448,18 @@ for (const def of TEMPLATE_BUTTONS) {
             });
             const enablePreview = !!getToolkit(this.app)?.settings?.enableSidebarPreviews;
             if (enablePreview) {
-              const p = latest.path /* or latest.path for sessionLink */;
+              const p = latest.path;
               sessionLink.classList.add('internal-link');
               sessionLink.setAttr('data-href', p);
               sessionLink.setAttr('href', p);
             }
           }
 
+          // Where the grouped links will render
           const list = wrapper.createDiv();
           await this.showAdventureAssets(adv, list);
         });
+
       });
 
     this.contentEl.createEl('hr');
@@ -463,13 +485,12 @@ for (const def of TEMPLATE_BUTTONS) {
     }
   }
 
-private async runTemplate(path: string, originLeaf?: WorkspaceLeaf) {
-  console.log("🟢 runTemplate called with originLeaf:", 
-    originLeaf?.view instanceof MarkdownView ? originLeaf.view.file?.path : "(none)");
-  const plugin = getToolkit(this.app);
-  if (!plugin) { new Notice('⚠️ VVunderlore Toolkit plugin not found.'); return; }
-  await plugin.runSBTemplate(path, originLeaf);
-}
+  private async runTemplate(path: string, originLeaf?: WorkspaceLeaf) {
+    originLeaf?.view instanceof MarkdownView ? originLeaf.view.file?.path : "(none)";
+    const plugin = getToolkit(this.app);
+    if (!plugin) { new Notice('⚠️ VVunderlore Toolkit plugin not found.'); return; }
+    await plugin.runSBTemplate(path, originLeaf);
+  }
 
 
   //-------+++++++++++ ADVENTURE FILTER
@@ -480,6 +501,7 @@ private async runTemplate(path: string, originLeaf?: WorkspaceLeaf) {
       .getFiles()
       .filter(f => f.path.startsWith(prefix));
 
+    // gather all internal link destinations inside the adventure
     const linkedPaths = new Set<string>();
     for (const file of files) {
       const cache = this.app.metadataCache.getFileCache(file);
@@ -495,58 +517,94 @@ private async runTemplate(path: string, originLeaf?: WorkspaceLeaf) {
       return;
     }
 
-    const overrides: [RegExp, string][] = [
-      [/Non-Player Characters\//, 'NPCs'],
-      [/Player Characters\//, 'Player Characters'],
-      [/Factions\//, 'Factions'],
-      [/Compendium\/Bestiary\//, 'Monsters'],
-      [/Compendium\/Items\//, 'Items'],
-      [/Compendium\/Spells\//, 'Spells'],
-      [/World\/History\//, 'History'],
-      [/World\/Events\//, 'Events'],
-      [/Deities\//, 'Deities'],
-      [/World\/Places\//, 'Places'],
-    ];
+    const catById = new Map(ADVENTURE_CATEGORY_DEFS.map(d => [d.id, d]));
 
     const groups: Record<string, string[]> = {};
     for (const fullPath of linkedPaths) {
-      let section = 'Other';
-      for (const [pattern, name] of overrides) {
-        if (pattern.test(fullPath)) { section = name; break; }
+      let id = 'other';
+      for (const def of ADVENTURE_CATEGORY_DEFS) {
+        if (def.test && def.test.test(fullPath)) { id = def.id; break; }
       }
-      (groups[section] ||= []).push(fullPath);
+      (groups[id] ||= []).push(fullPath);
     }
 
-    for (const section of Object.keys(groups).sort()) {
+    const plugin = getToolkit(this.app);
+const enabledIds = new Set(
+  Array.isArray(plugin?.settings?.enabledAdventureCategories)
+    ? plugin!.settings!.enabledAdventureCategories
+    : getAdventureCategoryIds()
+);
+
+
+    // sort mode from plugin settings (default 'name')
+    const sortMode = (getToolkit(this.app)?.settings?.adventureSort ?? 'name') as
+      'name' | 'recent' | 'refs';
+
+    // backlink counts once
+    const incoming = this.buildIncomingRefCounts();
+
+    // render each section once
+    for (const sectionId of Object.keys(groups).sort((a, b) => {
+      const la = catById.get(a)?.label ?? a;
+      const lb = catById.get(b)?.label ?? b;
+      return la.localeCompare(lb, undefined, { sensitivity: 'base' });
+    })) {
+      if (!enabledIds.has(sectionId)) continue;
+
+      const label = catById.get(sectionId)?.label ?? sectionId;
+
       const details = renderInto.createEl('details', { attr: { open: 'true' } });
-      const summary = details.createEl('summary', { text: section });
+      const summary = details.createEl('summary', { text: label });
       summary.addClass("sb-summary");
 
       const grid = details.createDiv();
       grid.addClass("sb-adv-grid");
 
-      groups[section]
-        .sort((a, b) => {
-          const aName = a.split('/').pop()!.replace(/\.md$/, '').toLowerCase();
-          const bName = b.split('/').pop()!.replace(/\.md$/, '').toLowerCase();
-          return aName.localeCompare(bName);
-        })
-        .forEach(path => {
-          const name = path.split('/').pop()!.replace(/\.md$/, '');
-          const linkEl = grid.createEl('a', { text: name, href: '#' });
-          linkEl.addClass("sb-adv-links");
-          linkEl.addEventListener('click', () => {
-            this.app.workspace.openLinkText(path, '', false);
-          });
-          const enablePreview = !!getToolkit(this.app)?.settings?.enableSidebarPreviews;
-          if (enablePreview) {
-            linkEl.classList.add('internal-link');
-            linkEl.setAttr('data-href', path);
-            linkEl.setAttr('href', path);
-          }
+      const paths = groups[sectionId].slice();
+
+      paths.sort((a, b) => {
+        if (sortMode === 'recent') {
+          const af = this.app.vault.getAbstractFileByPath(a);
+          const bf = this.app.vault.getAbstractFileByPath(b);
+          const am = (af instanceof TFile ? af.stat.mtime : 0) || 0;
+          const bm = (bf instanceof TFile ? bf.stat.mtime : 0) || 0;
+          if (bm !== am) return bm - am; // newer first
+        } else if (sortMode === 'refs') {
+          const ar = incoming.get(a) || 0;
+          const br = incoming.get(b) || 0;
+          if (br !== ar) return br - ar;   // more backlinks first
+
+          // tie-break by recency
+          const af = this.app.vault.getAbstractFileByPath(a);
+          const bf = this.app.vault.getAbstractFileByPath(b);
+          const am = (af instanceof TFile ? af.stat.mtime : 0) || 0;
+          const bm = (bf instanceof TFile ? bf.stat.mtime : 0) || 0;
+          if (bm !== am) return bm - am;
+        }
+
+        // final/default: name A→Z
+        const aName = a.split('/').pop()!.replace(/\.md$/, '').toLowerCase();
+        const bName = b.split('/').pop()!.replace(/\.md$/, '').toLowerCase();
+        return aName.localeCompare(bName);
+      });
+
+      paths.forEach(path => {
+        const name = path.split('/').pop()!.replace(/\.md$/, '');
+        const linkEl = grid.createEl('a', { text: name, href: '#' });
+        linkEl.addClass("sb-adv-links");
+        linkEl.addEventListener('click', () => {
+          this.app.workspace.openLinkText(path, '', false);
         });
+        const enablePreview = !!getToolkit(this.app)?.settings?.enableSidebarPreviews;
+        if (enablePreview) {
+          linkEl.classList.add('internal-link');
+          linkEl.setAttr('data-href', path);
+          linkEl.setAttr('href', path);
+        }
+      });
     }
   }
+
 
   //---------_++++++++++ SPELLBOOK
   private async showSpellbookSection(): Promise<void> {
@@ -637,7 +695,20 @@ private async runTemplate(path: string, originLeaf?: WorkspaceLeaf) {
       };
     };
 
+    // 2.5) Include Concentration checkbox (simple toggle)
+    const concRow = container.createDiv({
+      attr: {
+        style: 'display:flex; justify-content:center; margin:-6px 0 6px 0;'
+      }
+    });
 
+    const concLabel = concRow.createEl('label', {
+      attr: { style: 'display:inline-flex; align-items:center; gap:8px; cursor:pointer;' }
+    });
+
+    concLabel.createSpan({ text: 'Include Concentration Spells?' });
+    const concChk = concLabel.createEl('input', { attr: { type: 'checkbox' } }) as HTMLInputElement;
+    concChk.checked = true; // default ON
 
     const levelItems = Array.from(levels).sort((a, b) => a - b).map(lvl => ({ value: `${lvl}`, label: lvl === 0 ? 'Cantrip' : `Level ${lvl}` }));
     const schoolItems = Array.from(schools).sort().map(sch => ({ value: sch, label: sch }));
@@ -659,7 +730,6 @@ private async runTemplate(path: string, originLeaf?: WorkspaceLeaf) {
       document.addEventListener('pointerdown', this._ddCloser, true);
     }
 
-    // 3) Go / Clear
     const btnWrap = container.createDiv({
       attr: { style: 'display:flex; justify-content:center; margin-bottom:8px;' }
     });
@@ -667,7 +737,7 @@ private async runTemplate(path: string, originLeaf?: WorkspaceLeaf) {
     const goBtn = btnWrap.createEl('button', { text: 'Go', cls: 'mod-cta' });
     goBtn.setAttr('style', 'flex:1;');
     goBtn.addEventListener('click', () => {
-      this.renderTable(getLevels(), getSchools(), getDamages());
+      this.renderTable(getLevels(), getSchools(), getDamages(), concChk.checked);;
     });
 
     const clearBtn = btnWrap.createEl('button', { text: 'Clear Filters and Reset' });
@@ -682,11 +752,10 @@ private async runTemplate(path: string, originLeaf?: WorkspaceLeaf) {
         dd.querySelector('summary')?.setText(`${title} (0)`);
         dd.open = false;
       });
+      concChk.checked = true;
       const tableDiv = container.find('#spellbook-table') as HTMLDivElement;
       if (tableDiv) tableDiv.empty();
     });
-
-    // Picks area + table
     container.createEl('div', { attr: { id: 'spellbook-picks' } });
     container.createEl('div', { attr: { id: 'spellbook-table' } });
 
@@ -696,7 +765,8 @@ private async runTemplate(path: string, originLeaf?: WorkspaceLeaf) {
   private renderTable(
     selectedLevels: string[],
     selectedSchools: string[],
-    selectedDamages: string[]
+    selectedDamages: string[],
+    includeConcentration: boolean
   ): void {
     const tableDiv = this.containerEl.find('#spellbook-table') as HTMLDivElement;
     if (!tableDiv) return;
@@ -715,6 +785,11 @@ private async runTemplate(path: string, originLeaf?: WorkspaceLeaf) {
       const lvl = String(fm.level);
       const sch = String(fm.school);
       const dmgRaw = typeof fm.damage_type === 'string' ? fm.damage_type : '';
+
+      const isConc = fm.concentration === true ||
+        String(fm.concentration ?? '').toLowerCase() === 'true';
+
+      if (!includeConcentration && isConc) return false;
 
       return (
         (!selectedLevels.length || selectedLevels.includes(lvl)) &&
@@ -754,16 +829,19 @@ private async runTemplate(path: string, originLeaf?: WorkspaceLeaf) {
 
     const actTh = headerRow.createEl('th');
     actTh.setAttr('style', [
-      'flex:0 0 56px',
+      'flex:0 0 28px',
       'padding:4px',
       'text-align:left'
     ].join(';'));
 
-    const columns: { label: string; key: 'name' | 'level' | 'school' | 'damage'; flex: number }[] = [
+    type SpellColKey = 'name' | 'level' | 'school' | 'damage';
+
+    const columns: { label: string; key?: SpellColKey; flex: number }[] = [
       { label: 'Name', key: 'name', flex: 2 },
       { label: 'Lvl', key: 'level', flex: 1 },
       { label: 'School', key: 'school', flex: 1 },
       { label: 'Dmg Type', key: 'damage', flex: 1 },
+      { label: 'Conc.', flex: 1 },
     ];
 
     for (const { label, key, flex } of columns) {
@@ -774,20 +852,22 @@ private async runTemplate(path: string, originLeaf?: WorkspaceLeaf) {
         [
           `flex:${flex}`,
           'padding:4px',
-          key === 'name' ? 'text-align:left' : 'text-align:center',
-          'cursor:pointer',
+          label === 'Name' ? 'text-align:left' : 'text-align:center',
+          key ? 'cursor:pointer' : '',
         ].join(';')
       );
 
-      th.addEventListener('click', () => {
-        if (this.spellSortKey === key) {
-          this.spellSortDir = this.spellSortDir === 1 ? -1 : 1;
-        } else {
-          this.spellSortKey = key;
-          this.spellSortDir = 1;
-        }
-        this.renderTable(selectedLevels, selectedSchools, selectedDamages);
-      });
+      if (key) {
+        th.addEventListener('click', () => {
+          if (this.spellSortKey === key) {
+            this.spellSortDir = this.spellSortDir === 1 ? -1 : 1;
+          } else {
+            this.spellSortKey = key;
+            this.spellSortDir = 1;
+          }
+          this.renderTable(selectedLevels, selectedSchools, selectedDamages, includeConcentration);
+        });
+      }
     }
 
     let found = 0;
@@ -863,6 +943,17 @@ private async runTemplate(path: string, originLeaf?: WorkspaceLeaf) {
       dmgTd.setAttr('style', 'flex:1; display:flex; align-items:center; justify-content:center; padding:4px;');
       dmgTd.createSpan({ text: dmgRaw ? (DAMAGE_ABBR[dmgRaw] ?? dmgRaw.slice(0, 3)) : '—' });
 
+      const concTd = row.createEl('td');
+      concTd.setAttr(
+        'style',
+        'flex:1; display:flex; align-items:center; justify-content:center; padding:4px;'
+      );
+
+      const isConc =
+        fm.concentration === true ||
+        String(fm.concentration ?? '').toLowerCase() === 'true';
+
+      concTd.createSpan({ text: isConc ? '✓' : '—' });
 
       found++;
     }

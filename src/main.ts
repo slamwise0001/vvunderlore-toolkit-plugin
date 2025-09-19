@@ -1,18 +1,4 @@
-import {
-  App,
-  Plugin,
-  Notice,
-  Modal,
-  Setting,
-  TFolder,
-  TFile,
-  Vault,
-  requestUrl,
-  WorkspaceLeaf,
-  addIcon,
-  MarkdownView
-} from 'obsidian';
-
+import { App, Plugin, Notice, Modal, Setting, TFolder, TFile, Vault, requestUrl, WorkspaceLeaf, addIcon, MarkdownView } from 'obsidian';
 import { ToolkitSettingsTab } from './settings';
 import { ToolkitFileCacheManager } from './fileCacheManager';
 import type { ToolkitFileCacheEntry } from './fileCacheManager';
@@ -25,6 +11,9 @@ import "../styles.css";
 import { SidebarTemplatesView, SIDEBAR_VIEW_TYPE } from './sidebar/sb-worldbuilding';
 import { GameplaySidebarView, GAMEPLAY_VIEW_TYPE } from './sidebar/sb-gameplay';
 import { updateModalFormsFromRepo } from './modalFormsUpdater';
+import { AdventureSortOption } from './types';
+import { getAdventureCategoryIds } from './adv-categories';
+
 
 function getRulesetDisplayName(key: string): string {
   const ed = AVAILABLE_EDITIONS.find(e => e.id === key);
@@ -195,8 +184,8 @@ interface ToolkitSettings {
   sessionTitlePreference: "name" | "date";
   enableSidebarPreviews: boolean;
   templateOpenMode: "default" | "current" | "background";
-
-
+  adventureSort: 'name' | 'recent' | 'refs';
+  enabledAdventureCategories: string[];
 }
 
 const DEFAULT_SETTINGS: ToolkitSettings = {
@@ -231,6 +220,8 @@ const DEFAULT_SETTINGS: ToolkitSettings = {
   sessionTitlePreference: "name",
   enableSidebarPreviews: true,
   templateOpenMode: "default",
+  adventureSort: 'name',
+  enabledAdventureCategories: ['npcs','factions','monsters','history','places'],
 };
 
 interface CustomPathEntry {
@@ -303,6 +294,46 @@ export default class VVunderloreToolkitPlugin extends Plugin {
         c.manifestKey === this.keyFor(githubPath)
     );
     return custom?.vaultPath ?? githubPath;
+  }
+
+  private buildIncomingRefCounts(): Map<string, number> {
+    const incoming = new Map<string, number>();
+    const resolved = this.app.metadataCache.resolvedLinks as Record<string, Record<string, number>>;
+
+    for (const from in resolved) {
+      const toMap = resolved[from];
+      for (const to in toMap) {
+        incoming.set(to, (incoming.get(to) || 0) + (toMap[to] || 1));
+      }
+    }
+    return incoming;
+  }
+
+  private sortFilesByMode(files: TFile[]): void {
+    const mode = this.settings.adventureSort;
+
+    if (mode === 'name') {
+      files.sort((a, b) =>
+        a.basename.localeCompare(b.basename, undefined, { numeric: true, sensitivity: 'base' })
+      );
+      return;
+    }
+
+    if (mode === 'recent') {
+      files.sort((a, b) => (b.stat.mtime || 0) - (a.stat.mtime || 0));
+      return;
+    }
+
+    // mode === 'refs'
+    const incoming = this.buildIncomingRefCounts();
+    files.sort((a, b) => {
+      const rb = incoming.get(b.path) || 0;
+      const ra = incoming.get(a.path) || 0;
+      if (rb !== ra) return rb - ra;
+      const mt = (b.stat.mtime || 0) - (a.stat.mtime || 0);
+      if (mt !== 0) return mt;
+      return a.basename.localeCompare(b.basename);
+    });
   }
 
   private pendingSelection: PendingSelection | null = null;
@@ -627,6 +658,12 @@ export default class VVunderloreToolkitPlugin extends Plugin {
 
   async onload() {
     await this.loadSettings();
+
+if (!Array.isArray(this.settings.enabledAdventureCategories)) {
+  this.settings.enabledAdventureCategories = ['npcs','factions','monsters','history','places'];
+  await this.saveSettings();
+}
+
 
     addIcon('mapmaking', mapmaking_icon)
     addIcon('gameplay', gameplay_icon)

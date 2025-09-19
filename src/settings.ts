@@ -14,13 +14,16 @@ import {
 	ToggleComponent,
 	ButtonComponent,
 	DropdownComponent,
-	SearchComponent
+	SearchComponent,
+	Menu
 } from 'obsidian';
 import type VVunderloreToolkitPlugin from './main';
 import { ConfirmFreshInstallModal } from './firstinstallconfirm';
 import { showCustomInstallModal } from "./customInstallModal";
 import * as path from 'path';
 import { AVAILABLE_EDITIONS, Edition } from './editions'
+import { AdventureSortOption } from './types';
+import { ADVENTURE_CATEGORY_DEFS, getAdventureCategoryIds } from './adv-categories';
 
 
 // Define your CustomPathEntry interface.
@@ -1129,21 +1132,6 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 			const behaviorBody = behaviorDetails.createDiv({ cls: 'vk-section-body' });
 			behaviorBody.addClass("vv-pl-md");
 
-			// Dropdown: Session title preference
-			new Setting(behaviorBody)
-				.setName("Session Template Naming")
-				.setDesc("When both a date and a name are entered in the New Session form, choose which one to use in the session note title. For example, 'Session 14 - Burning Down the Village' vs 'Session 14 - 4.5.63'")
-				.addDropdown((dd) => {
-					dd.addOption("name", "Session Name");
-					dd.addOption("date", "Date");
-					dd.setValue(this.plugin.settings.sessionTitlePreference ?? "name");
-					dd.onChange(async (val: "name" | "date") => {
-						this.plugin.settings.sessionTitlePreference = val;
-						await this.plugin.saveSettings();
-					});
-				});
-
-			// Toggle: Disable page previews in sidebars
 			new Setting(behaviorBody)
 				.setName("Enable Page Previews in Sidebars")
 				.setDesc("If enabled, links in VVunderlore sidebars (VVorldbuilding, Gameplay) will show hover previews.")
@@ -1155,6 +1143,108 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 						(this.app.workspace as any).trigger('vv:sidebar-previews-changed', { enabled: val });
 					});
 				});
+			new Setting(behaviorBody)
+				.setName('Sort Adventure Assets in Sidebar')
+				.setDesc('Choose how links are sorted (switch adventures in the sidebar to see the effect)')
+				.addDropdown(d => {
+					d.addOption('name', 'Alphabetical');
+					d.addOption('recent', 'Most Recent');
+					d.addOption('refs', 'Most Linked');
+					d.setValue(this.plugin.settings.adventureSort);
+					d.onChange(async (v) => {
+						this.plugin.settings.adventureSort = v as any;
+						await this.plugin.saveSettings();
+						(this.app.workspace as any).trigger?.('vv:sidebar-refresh');
+					});
+				});
+
+			const visibleCats = new Setting(behaviorBody)
+				.setName('Visible Adventure Categories')
+				.setDesc('Choose which categories appear in the Adventure sidebar (switch adventures in the sidebar to see the effect)');
+
+			const panel = document.createElement('div');
+			panel.className = 'vk-section vk-inline-collapse';
+			visibleCats.settingEl.insertAdjacentElement('afterend', panel);
+
+			const body = panel.createDiv({ cls: 'vk-section-body vv-pl-md' });
+
+			// 2) Right-side trigger pill (reuse from previous code)
+			const trigger = visibleCats.controlEl.createEl('button', {
+				cls: 'vv-cats-trigger',
+			});
+			trigger.setAttr('type', 'button');
+			trigger.createSpan({ text: 'Categories  ', cls: 'vv-cats-trigger-label' });
+			// 3) Show/hide without <details>
+			let open = false;
+			const setOpen = (v: boolean) => {
+				open = v;
+				panel.style.display = v ? '' : 'none';
+ 			};
+
+			trigger.addEventListener('click', (e) => {
+				e.preventDefault();
+				setOpen(!open);
+			});
+
+			// 4) Render contents (same as before)
+			const ALL = getAdventureCategoryIds();
+			const DEFAULT_SUBSET = ['npcs', 'factions', 'monsters', 'history', 'places'];
+
+			const getSelection = () =>
+				new Set<string>(
+					Array.isArray(this.plugin.settings.enabledAdventureCategories)
+						? this.plugin.settings.enabledAdventureCategories
+						: ALL
+				);
+
+			const save = async (sel: Set<string>) => {
+				this.plugin.settings.enabledAdventureCategories = Array.from(sel);
+				await this.plugin.saveSettings();
+				(this.app.workspace as any).trigger?.('vv:sidebar-refresh');
+			};
+
+			const render = () => {
+				body.empty();
+
+				// tools
+				const tools = body.createDiv({ attr: { style: 'display:flex; gap:.5rem; margin-bottom:.5rem;' } });
+				const mk = (label: string, act: () => void) => {
+					const b = tools.createEl('button', { text: label, cls: 'vv-cats-btn' });
+					b.addEventListener('click', async (e) => {
+						e.preventDefault();
+						const sel = getSelection();
+						if (label === 'All') { ALL.forEach(id => sel.add(id)); }
+						if (label === 'Defaults') { sel.clear(); DEFAULT_SUBSET.forEach(id => sel.add(id)); }
+						await save(sel);
+						render();
+					});
+				};
+				mk('All', () => { });
+				mk('Defaults', () => { });
+
+				// grid
+				const grid = body.createDiv({ attr: { style: 'display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:.25rem .75rem;' } });
+				const sel = getSelection();
+				ADVENTURE_CATEGORY_DEFS.forEach(cat => {
+					const row = grid.createEl('label', { attr: { style: 'display:flex; align-items:center;' } });
+					const cb = row.createEl('input', { type: 'checkbox' }) as HTMLInputElement;
+					cb.checked = sel.has(cat.id);
+					row.appendText(' ' + cat.label);
+					cb.addEventListener('change', async () => {
+						const next = getSelection();
+						if (cb.checked) next.add(cat.id); else next.delete(cat.id);
+						await save(next);
+					});
+				});
+			};
+
+			// init
+			render();
+			setOpen(false);
+
+
+
+
 			new Setting(behaviorBody)
 				.setName("Opening New Template Notes")
 				.setDesc("Choose how new notes from templates are opened when created from command or the sidebar")
@@ -1169,6 +1259,20 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					});
 				});
+			new Setting(behaviorBody)
+				.setName("Session Template Naming")
+				.setDesc("When both a date and a name are entered in the New Session form, choose which one to use in the session note title. For example, 'Session 14 - Burning Down the Village' vs 'Session 14 - 4.5.63'")
+				.addDropdown((dd) => {
+					dd.addOption("name", "Session Name");
+					dd.addOption("date", "Date");
+					dd.setValue(this.plugin.settings.sessionTitlePreference ?? "name");
+					dd.onChange(async (val: "name" | "date") => {
+						this.plugin.settings.sessionTitlePreference = val;
+						await this.plugin.saveSettings();
+					});
+				});
+
+
 
 			// ───── HIGHLIGHT SECTION ───────────────────────────────────────────────────
 			const highlightDetails = containerEl.createEl('details', { cls: 'vk-section' });
