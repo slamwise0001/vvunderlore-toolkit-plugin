@@ -221,7 +221,7 @@ const DEFAULT_SETTINGS: ToolkitSettings = {
   enableSidebarPreviews: true,
   templateOpenMode: "default",
   adventureSort: 'name',
-  enabledAdventureCategories: ['npcs','factions','monsters','history','places'],
+  enabledAdventureCategories: ['npcs', 'factions', 'monsters', 'history', 'places'],
 };
 
 interface CustomPathEntry {
@@ -659,10 +659,10 @@ export default class VVunderloreToolkitPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
 
-if (!Array.isArray(this.settings.enabledAdventureCategories)) {
-  this.settings.enabledAdventureCategories = ['npcs','factions','monsters','history','places'];
-  await this.saveSettings();
-}
+    if (!Array.isArray(this.settings.enabledAdventureCategories)) {
+      this.settings.enabledAdventureCategories = ['npcs', 'factions', 'monsters', 'history', 'places'];
+      await this.saveSettings();
+    }
 
 
     addIcon('mapmaking', mapmaking_icon)
@@ -682,6 +682,31 @@ if (!Array.isArray(this.settings.enabledAdventureCategories)) {
     // sidebars
     this.registerView(SIDEBAR_VIEW_TYPE, (leaf) => new SidebarTemplatesView(leaf));
     this.registerView(GAMEPLAY_VIEW_TYPE, (leaf) => new GameplaySidebarView(leaf));
+
+    // Auto-open both sidebars on the RIGHT and focus VVorldbuilding
+    this.app.workspace.onLayoutReady(async () => {
+      // Always return a non-null right leaf
+      const getOrCreateRightLeaf = (): WorkspaceLeaf =>
+        this.app.workspace.getRightLeaf(false) ?? this.app.workspace.getRightLeaf(true)!;
+
+      // Ensure Gameplay (right, no focus)
+      let gameplayLeaf: WorkspaceLeaf | null =
+        this.app.workspace.getLeavesOfType(GAMEPLAY_VIEW_TYPE)[0] ?? null;
+      if (!gameplayLeaf) {
+        gameplayLeaf = getOrCreateRightLeaf();
+        await gameplayLeaf.setViewState({ type: GAMEPLAY_VIEW_TYPE, active: false });
+      }
+
+      // Ensure VVorldbuilding (right, focus this one)
+      let worldLeaf: WorkspaceLeaf | null =
+        this.app.workspace.getLeavesOfType(SIDEBAR_VIEW_TYPE)[0] ?? null;
+      if (!worldLeaf) {
+        worldLeaf = getOrCreateRightLeaf();
+      }
+      await worldLeaf.setViewState({ type: SIDEBAR_VIEW_TYPE, active: true });
+      this.app.workspace.revealLeaf(worldLeaf);
+    });
+
 
     // ******++++++ SUPER COOL HOTKEY COMMANDS SECTION--------------------------------
 
@@ -800,6 +825,8 @@ if (!Array.isArray(this.settings.enabledAdventureCategories)) {
     }
     //  • Highlight nav items if enabled
     if (this.settings.highlightEnabled) this.enableHighlight();
+
+
 
     // ─── DEFER HEAVY TASKS ───────────────────────────────────────────────
     setTimeout(async () => {
