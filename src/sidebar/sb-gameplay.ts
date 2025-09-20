@@ -9,6 +9,7 @@ import {
     Notice,
     Modal
 } from 'obsidian';
+import { ShopkeeperPanel } from './sb-shopkeeper';
 
 export const GAMEPLAY_VIEW_TYPE = "vvunderlore-gameplay";
 
@@ -76,9 +77,9 @@ type PlayerRow = {
 };
 
 const possessive = (n: string) => {
-  const t = (n ?? "").trim();
-  if (!t) return "";
-  return /s$/i.test(t) ? `${t}'` : `${t}'s`;
+    const t = (n ?? "").trim();
+    if (!t) return "";
+    return /s$/i.test(t) ? `${t}'` : `${t}'s`;
 };
 
 function sanitizeSpeed(raw: string): string {
@@ -275,6 +276,7 @@ export class EditListModal extends Modal {
         }
     }
 
+
     // ── suggestions ──────────────────────────────────────────────────────
     private showSuggestions(q: string) {
         const needle = q.trim().toLowerCase();
@@ -319,13 +321,13 @@ export class EditListModal extends Modal {
     }
 
     private hideSuggestions() {
-    this.suggestWrap.empty();
-    this.suggestWrap.setAttr("aria-hidden", "true");
-    this.suggestWrap.toggleClass("is-open", false);
-    this.suggestWrap.classList.remove("drop-up");
-    this.suggestWrap.style.maxHeight = "";     // ← reset
-    this.filtered = [];
-    this.hoverIndex = -1;
+        this.suggestWrap.empty();
+        this.suggestWrap.setAttr("aria-hidden", "true");
+        this.suggestWrap.toggleClass("is-open", false);
+        this.suggestWrap.classList.remove("drop-up");
+        this.suggestWrap.style.maxHeight = "";     // ← reset
+        this.filtered = [];
+        this.hoverIndex = -1;
     }
 
     private setHover(i: number) {
@@ -348,6 +350,7 @@ export class GameplaySidebarView extends ItemView {
     private partyTableWrap: HTMLDivElement | null = null;
     private detailsWrap: HTMLDivElement | null = null;
     private detailsOpenPath: string | null = null;
+    private shopkeeperPanel?: ShopkeeperPanel;
 
     constructor(leaf: WorkspaceLeaf) { super(leaf); }
     getViewType() { return GAMEPLAY_VIEW_TYPE; }
@@ -634,7 +637,7 @@ export class GameplaySidebarView extends ItemView {
                     ["Compendium/Items", "Compendium/Magic Items"], true
                 );
                 new EditListModal(this.app, {
-                    title: `${possessive(name)} Key Items`, 
+                    title: `${possessive(name)} Key Items`,
                     initial: read(),
                     candidates,
                     placeholder: "Search items…",
@@ -865,7 +868,7 @@ export class GameplaySidebarView extends ItemView {
                     this.queueTable();
                 }
             })
-        ); 
+        );
     }
 
     // Read a string-array frontmatter field regardless of key casing/shape
@@ -937,9 +940,27 @@ export class GameplaySidebarView extends ItemView {
                 }
             })
         );
+
+        // ── SHOPKEEPER ─────────────────────────────────────────────────────────
+        // {
+        //     // Create a sibling section below Party Overview
+        //     const sk = (this.containerEl.children[1] as HTMLDivElement).createEl("details");
+        //     sk.addClass("vv-gp-root");
+
+        //     const skSummary = sk.createEl("summary", { text: "Shopkeeper" });
+        //     skSummary.addClass("vv-gp-summary");
+
+        //     const skBody = sk.createDiv({ cls: "vv-gp-root-body" });
+
+        //     // Instantiate and render the panel into skBody
+        //     this.shopkeeperPanel = new ShopkeeperPanel(this.app, getToolkit(this.app), skBody);
+        //     await this.shopkeeperPanel.render();
+        // }
     }
 
-    async onClose() { }
+    async onClose() {
+        this.shopkeeperPanel?.dispose();
+    }
 
     private async renderAddRow() {
         const plugin = getToolkit(this.app);
@@ -1228,6 +1249,6 @@ export class GameplaySidebarView extends ItemView {
             (this.partyTableWrap as any)._vvHoverWired = true;
             (this.partyTableWrap as any)._vvHoverHandler = handler;
 
-        } 
+        }
     }
 }
