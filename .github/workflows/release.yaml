@@ -1,18 +1,33 @@
-name: Notify Discord on Release
+name: Release plugin
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - "*"
 
 jobs:
-  discordNotification:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Notify via Releasify
-        uses: teneplaysofficial/releasify-action@v1
+      - uses: actions/checkout@v3
+
+      - name: Use Node.js
+        uses: actions/setup-node@v3
         with:
-          webhook: ${{ secrets.WEBHOOK_URL }}
-          title: "🚀 New Release!"
-          footer: "Published by Slamwise"
-          username: "Update Peddler"
-          avatar_url: ""
+          node-version: "18.x"
+
+      - name: Build plugin
+        run: |
+          npm install
+          npm run build
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release create "$tag" \
+            --title="$tag" \
+            --draft \
+            main.js manifest.json styles.css
