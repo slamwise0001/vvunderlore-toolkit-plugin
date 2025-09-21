@@ -287,7 +287,7 @@ export class SidebarTemplatesView extends ItemView {
     });
 
     // COPY (primary)
-    const copyBtn = actions.createEl('button', { text: 'Copy Spellbook' });
+    const copyBtn = actions.createEl('button', { text: 'Copy Grimoire' });
     copyBtn.classList.add('mod-cta');
     // disable when nothing selected
     copyBtn.toggleAttribute('disabled', this.picks.length === 0);
@@ -299,7 +299,7 @@ export class SidebarTemplatesView extends ItemView {
       const md = this.buildDataviewForPicks();
       try {
         await navigator.clipboard.writeText(md);
-        new Notice('📋 Dataview table copied to clipboard.');
+        new Notice('📜 Grimoire table copied to clipboard.');
       } catch {
         const ta = body.createEl('textarea', { text: md });
         ta.setAttr('style', 'width:100%;height:220px;margin-top:8px;');

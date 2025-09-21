@@ -1290,7 +1290,7 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 						.onChange(async (v) => {
 							this.plugin.settings.hideBaseToolbar = v;
 							await this.plugin.saveSettings();
-							this.plugin.applyBaseToolbarEmbedCSS(); 
+							this.plugin.applyBaseToolbarEmbedCSS();
 						});
 				});
 

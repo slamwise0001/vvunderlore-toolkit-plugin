@@ -872,6 +872,18 @@ export default class VVunderloreToolkitPlugin extends Plugin {
       callback: async () => { await this.forceUpdatePreviewAndConfirm(); },
     });
 
+    this.addCommand({
+      id: 'vv-toggle-embed-toolbar',
+      name: 'Toggle: Show/Hide toolbars in Embedded Bases',
+      callback: async () => {
+        const next = !this.settings.hideBaseToolbar;
+        this.settings.hideBaseToolbar = next;
+        await this.saveSettings();
+        this.applyBaseToolbarEmbedCSS();
+        this.settingsTab?.display();
+      },
+    });
+
     // this.addCommand({
     //   id: 'vv-migrate-scan',
     //   name: 'VVunderlore: Run — Migration Auditor (Scan)',
@@ -1738,134 +1750,134 @@ export default class VVunderloreToolkitPlugin extends Plugin {
   }
 
   async performForceUpdateWithSelection(previewList: PreviewItem[]) {
-  // Wipe in-memory backups before we begin
-  this.settings.backupFiles = {};
-  await this.saveSettings();
+    // Wipe in-memory backups before we begin
+    this.settings.backupFiles = {};
+    await this.saveSettings();
 
-  // Build the update set up front (so we can skip backup if nothing to do)
-  const toUpdate = previewList.filter(
-    (item) =>
-      item.selected &&
-      !item.isFolder &&
-      !this.settings.customPaths.some(
-        (c) => c.vaultPath === item.filePath && c.doUpdate === false
-      )
-  );
+    // Build the update set up front (so we can skip backup if nothing to do)
+    const toUpdate = previewList.filter(
+      (item) =>
+        item.selected &&
+        !item.isFolder &&
+        !this.settings.customPaths.some(
+          (c) => c.vaultPath === item.filePath && c.doUpdate === false
+        )
+    );
 
-  if (toUpdate.length === 0) {
-    // Nothing to do — exit quietly
-    return;
-  }
-
-  if (this.settings.autoBackupBeforeUpdate) {
-    new Notice('Starting safety backup of selected files…'); // 1/2
-
-    let backupSucceeded = false;
-
-    // Try disk mirror first (quiet on failure)
-    try {
-      const pathsToBackup = toUpdate.map(i => i.filePath);
-      if (pathsToBackup.length) {
-        await this.writePartialMirror(pathsToBackup, 'pre-force-update');
-        backupSucceeded = true;
-      }
-    } catch (e) {
-      console.warn('[VV] Partial mirror backup failed; falling back to in-memory backup.', e);
+    if (toUpdate.length === 0) {
+      // Nothing to do — exit quietly
+      return;
     }
 
-    // Fallback: in-memory backup (quiet, console on per-file issues)
-    if (!backupSucceeded) {
+    if (this.settings.autoBackupBeforeUpdate) {
+      new Notice('Starting safety backup of selected files…'); // 1/2
+
+      let backupSucceeded = false;
+
+      // Try disk mirror first (quiet on failure)
       try {
-        const now = new Date().toISOString();
-        let backedUp = 0;
-        for (const item of toUpdate) {
-          try {
-            if (await this.app.vault.adapter.exists(item.filePath)) {
-              const current = await this.app.vault.adapter.read(item.filePath);
-              await this.backupFile(item.filePath, current);
-              backedUp++;
-            }
-          } catch (e) {
-            console.warn('[VV] In-memory pre-backup failed for', item.filePath, e);
-          }
-        }
-        if (backedUp > 0) {
-          this.settings.lastBackupTime = now;
-          await this.saveSettings();
+        const pathsToBackup = toUpdate.map(i => i.filePath);
+        if (pathsToBackup.length) {
+          await this.writePartialMirror(pathsToBackup, 'pre-force-update');
           backupSucceeded = true;
         }
       } catch (e) {
-        console.warn('[VV] In-memory backup phase encountered an error.', e);
+        console.warn('[VV] Partial mirror backup failed; falling back to in-memory backup.', e);
+      }
+
+      // Fallback: in-memory backup (quiet, console on per-file issues)
+      if (!backupSucceeded) {
+        try {
+          const now = new Date().toISOString();
+          let backedUp = 0;
+          for (const item of toUpdate) {
+            try {
+              if (await this.app.vault.adapter.exists(item.filePath)) {
+                const current = await this.app.vault.adapter.read(item.filePath);
+                await this.backupFile(item.filePath, current);
+                backedUp++;
+              }
+            } catch (e) {
+              console.warn('[VV] In-memory pre-backup failed for', item.filePath, e);
+            }
+          }
+          if (backedUp > 0) {
+            this.settings.lastBackupTime = now;
+            await this.saveSettings();
+            backupSucceeded = true;
+          }
+        } catch (e) {
+          console.warn('[VV] In-memory backup phase encountered an error.', e);
+        }
+      }
+
+      if (backupSucceeded) {
+        new Notice('Backup complete. Continuing with update…'); // 2/2
+      } else {
+        // Still keep this quiet; only log. (No extra toast.)
+        console.error('[VV] No backup could be created; proceeding anyway per user action.');
       }
     }
+    // --------------------------------------------------------------------
 
-    if (backupSucceeded) {
-      new Notice('Backup complete. Continuing with update…'); // 2/2
-    } else {
-      // Still keep this quiet; only log. (No extra toast.)
-      console.error('[VV] No backup could be created; proceeding anyway per user action.');
-    }
-  }
-  // --------------------------------------------------------------------
+    let updatedCount = 0;
 
-  let updatedCount = 0;
-
-  try {
-    // Update each selected file
-    for (const item of toUpdate) {
-      const entry = this.manifestCache.files.find(
-        (f) => this.resolveVaultPath(f.path) === item.filePath
-      );
-      if (!entry) {
-        console.warn('[VV] Could not match preview item to manifest:', item.filePath);
-        continue;
-      }
-      await this.updateEntryFromManifest(entry, true);
-      updatedCount++;
-    }
-
-    // Ensure manifest folders exist (quiet)
-    for (const entry of this.manifestCache.folders) {
-      if (!(await this.app.vault.adapter.exists(entry.path))) {
-        await this.app.vault.createFolder(entry.path);
-      }
-    }
-
-    // Modal forms updater (quiet)
     try {
-      await updateModalFormsFromRepo(this.app);
-    } catch (e) {
-      console.warn('[VV] Modal Forms updater (force selection) failed:', e);
-    }
-
-    // Version bump (quiet)
-    await this.updateVersionFile();
-    this.settings.installedVersion = this.settings.latestToolkitVersion ?? 'unknown';
-    this.settings.lastForceUpdate = new Date().toISOString();
-    await this.saveSettings();
-
-    // Optional gameset refresh (quiet)
-    if (this.settings.reparseGamesets) {
-      try {
-        await this.refreshGameSetData();
-      } catch (e) {
-        console.warn('[VV] Game set refresh failed:', e);
+      // Update each selected file
+      for (const item of toUpdate) {
+        const entry = this.manifestCache.files.find(
+          (f) => this.resolveVaultPath(f.path) === item.filePath
+        );
+        if (!entry) {
+          console.warn('[VV] Could not match preview item to manifest:', item.filePath);
+          continue;
+        }
+        await this.updateEntryFromManifest(entry, true);
+        updatedCount++;
       }
+
+      // Ensure manifest folders exist (quiet)
+      for (const entry of this.manifestCache.folders) {
+        if (!(await this.app.vault.adapter.exists(entry.path))) {
+          await this.app.vault.createFolder(entry.path);
+        }
+      }
+
+      // Modal forms updater (quiet)
+      try {
+        await updateModalFormsFromRepo(this.app);
+      } catch (e) {
+        console.warn('[VV] Modal Forms updater (force selection) failed:', e);
+      }
+
+      // Version bump (quiet)
+      await this.updateVersionFile();
+      this.settings.installedVersion = this.settings.latestToolkitVersion ?? 'unknown';
+      this.settings.lastForceUpdate = new Date().toISOString();
+      await this.saveSettings();
+
+      // Optional gameset refresh (quiet)
+      if (this.settings.reparseGamesets) {
+        try {
+          await this.refreshGameSetData();
+        } catch (e) {
+          console.warn('[VV] Game set refresh failed:', e);
+        }
+      }
+
+      if (this.settingsTab) {
+        await this.settingsTab.updateVersionDisplay();
+      }
+    } catch (err) {
+      // Keep failures quiet (log only). No extra toasts.
+      console.error('[VV] Force update failed. Version not changed.', err);
     }
 
-    if (this.settingsTab) {
-      await this.settingsTab.updateVersionDisplay();
+    if (this.settings.highlightEnabled) {
+      this.enableHighlight();
     }
-  } catch (err) {
-    // Keep failures quiet (log only). No extra toasts.
-    console.error('[VV] Force update failed. Version not changed.', err);
-  }
 
-  if (this.settings.highlightEnabled) {
-    this.enableHighlight();
   }
-
-}
 
 
   // ─── SINGLE-FILE UPDATE (with GitHub API + raw fallback) ──────────────
