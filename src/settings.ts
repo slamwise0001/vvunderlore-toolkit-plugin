@@ -527,50 +527,50 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 			checkBtn.dataset.state = installed !== latest ? 'update' : 'check';
 
 			checkBtn.addEventListener('click', async () => {
-  if (checkBtn.disabled) return;
+				if (checkBtn.disabled) return;
 
-  // 1) Fast path: we already know an update exists (set via dataset/state)
-  if (checkBtn.dataset.state === 'update') {
-    this.plugin.previewUpdatesModal();
-    return;
-  }
+				// 1) Fast path: we already know an update exists (set via dataset/state)
+				if (checkBtn.dataset.state === 'update') {
+					this.plugin.previewUpdatesModal();
+					return;
+				}
 
-  // 2) Otherwise, do a 3s spinner while checking network
-  const prevLabel = checkBtn.textContent || 'Check for Updates';
-  checkBtn.classList.add('mod-loading');
-  checkBtn.setAttribute('aria-busy', 'true');
-  checkBtn.disabled = true;
+				// 2) Otherwise, do a 3s spinner while checking network
+				const prevLabel = checkBtn.textContent || 'Check for Updates';
+				checkBtn.classList.add('mod-loading');
+				checkBtn.setAttribute('aria-busy', 'true');
+				checkBtn.disabled = true;
 
-  try {
-    const minDelay = new Promise<void>(res => setTimeout(res, 3000));
-    await Promise.all([ this.plugin.checkForUpdates(), minDelay ]);
+				try {
+					const minDelay = new Promise<void>(res => setTimeout(res, 3000));
+					await Promise.all([this.plugin.checkForUpdates(), minDelay]);
 
-    await this.updateVersionDisplay(); // keeps text + dataset.state in sync
+					await this.updateVersionDisplay(); // keeps text + dataset.state in sync
 
-    // Stop spinner
-    checkBtn.classList.remove('mod-loading');
-    checkBtn.removeAttribute('aria-busy');
+					// Stop spinner
+					checkBtn.classList.remove('mod-loading');
+					checkBtn.removeAttribute('aria-busy');
 
-    // 3) Decide next state from the freshly-updated dataset/state
-    if (checkBtn.dataset.state === 'update') {
-      // Now that we know, enable and let the next click open preview immediately
-      checkBtn.disabled = false;
-      checkBtn.textContent = 'Update Available!';
-      checkBtn.onclick = () => { this.plugin.previewUpdatesModal(); };
-      return;
-    }
+					// 3) Decide next state from the freshly-updated dataset/state
+					if (checkBtn.dataset.state === 'update') {
+						// Now that we know, enable and let the next click open preview immediately
+						checkBtn.disabled = false;
+						checkBtn.textContent = 'Update Available!';
+						checkBtn.onclick = () => { this.plugin.previewUpdatesModal(); };
+						return;
+					}
 
-    // Up to date → freeze disabled until settings is closed
-    checkBtn.textContent = 'Up to date!';
-    checkBtn.disabled = true;
-  } catch (err) {
-    console.error('Update check failed:', err);
-    checkBtn.classList.remove('mod-loading');
-    checkBtn.removeAttribute('aria-busy');
-    checkBtn.textContent = prevLabel;
-    checkBtn.disabled = false;
-  }
-});
+					// Up to date → freeze disabled until settings is closed
+					checkBtn.textContent = 'Up to date!';
+					checkBtn.disabled = true;
+				} catch (err) {
+					console.error('Update check failed:', err);
+					checkBtn.classList.remove('mod-loading');
+					checkBtn.removeAttribute('aria-busy');
+					checkBtn.textContent = prevLabel;
+					checkBtn.disabled = false;
+				}
+			});
 
 			const changelogBtn = buttonRow.createEl('button', { text: '📖 View Changelog' });
 			changelogBtn.addEventListener('click', () => {
@@ -1255,9 +1255,6 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 			render();
 			setOpen(false);
 
-
-
-
 			new Setting(behaviorBody)
 				.setName("Opening New Template Notes")
 				.setDesc("Choose how new notes from templates are opened when created from command or the sidebar")
@@ -1283,6 +1280,18 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 						this.plugin.settings.sessionTitlePreference = val;
 						await this.plugin.saveSettings();
 					});
+				});
+
+			new Setting(behaviorBody)
+				.setName('Hide toolbars in Embedded Bases')
+				.setDesc('Hides the toolbar in embeded bases (e.g, Player Character notes). This does not affect full Base views')
+				.addToggle(t => {
+					t.setValue(this.plugin.settings.hideBaseToolbar ?? false)
+						.onChange(async (v) => {
+							this.plugin.settings.hideBaseToolbar = v;
+							await this.plugin.saveSettings();
+							this.plugin.applyBaseToolbarEmbedCSS(); 
+						});
 				});
 
 

@@ -186,6 +186,7 @@ interface ToolkitSettings {
   templateOpenMode: "default" | "current" | "background";
   adventureSort: 'name' | 'recent' | 'refs';
   enabledAdventureCategories: string[];
+  hideBaseToolbar: boolean;
 }
 
 const DEFAULT_SETTINGS: ToolkitSettings = {
@@ -222,6 +223,7 @@ const DEFAULT_SETTINGS: ToolkitSettings = {
   templateOpenMode: "default",
   adventureSort: 'name',
   enabledAdventureCategories: ['npcs', 'factions', 'monsters', 'history', 'places'],
+  hideBaseToolbar: false,
 };
 
 interface CustomPathEntry {
@@ -346,6 +348,14 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     this.pendingSelection = null;
     return c;
   }
+
+  public applyBaseToolbarEmbedCSS() {
+  if (this.settings.hideBaseToolbar) {
+    document.body.classList.add('vv-hide-bases-toolbar');
+  } else {
+    document.body.classList.remove('vv-hide-bases-toolbar');
+  }
+}
 
   // keep your old API working, but add a preWrap flag
   public setPendingSeed(s: string | null, preWrap: boolean = false) {
@@ -680,6 +690,7 @@ export default class VVunderloreToolkitPlugin extends Plugin {
       await this.saveSettings();
     }
 
+    this.applyBaseToolbarEmbedCSS();
 
     addIcon('mapmaking', mapmaking_icon)
     addIcon('gameplay', gameplay_icon)

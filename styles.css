@@ -1368,3 +1368,9 @@
   gap: 8px;
   justify-content: flex-end;
 }
+
+/* base embed hiding */
+body.vv-hide-bases-toolbar .internal-embed.bases-embed > .bases-header,
+body.vv-hide-bases-toolbar .markdown-embed .bases-embed > .bases-header {
+  display: none !important;
+}
