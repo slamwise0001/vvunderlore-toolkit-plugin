@@ -16,7 +16,7 @@ jobs:
           username: "Update Peddler"
           avatar_url: "https://cdn.discordapp.com/avatars/487431320314576937/bd64361e4ba6313d561d54e78c9e7171.png"
           content: "||@everyone|| THERE HAS BEEN RELEASED A NEW UPDATE FOR THE TOOLKIT PLUGIN:"
-          footer_title: "VVunderlore Toolkit Release"
+          footer_title: "VVunderlore Toolkit Plugin"
           footer_timestamp: true
           max_description: 4096	
           reduce_headings: true
