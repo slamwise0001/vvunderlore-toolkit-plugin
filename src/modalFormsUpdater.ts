@@ -151,7 +151,6 @@ export async function updateModalFormsFromRepo(
     const noteBits = [];
     if (result.replacedForms.length) noteBits.push(`replaced: ${result.replacedForms.length}`);
     if (result.addedForms.length) noteBits.push(`added: ${result.addedForms.length}`);
-    new Notice(`✅ Modal Forms updated (${noteBits.join(", ") || "no changes"}).`);
   }
 
   return {

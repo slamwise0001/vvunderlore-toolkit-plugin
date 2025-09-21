@@ -288,7 +288,6 @@ export default class VVunderloreToolkitPlugin extends Plugin {
 
   // ─── HELPERS ────────────────────────────────────────────────────────
 
-  /** Given a GitHub path, return the overridden vault path or the original. */
   resolveVaultPath(githubPath: string): string {
     const custom = this.settings.customPaths.find(
       (c) =>
@@ -297,6 +296,51 @@ export default class VVunderloreToolkitPlugin extends Plugin {
     );
     return custom?.vaultPath ?? githubPath;
   }
+
+  private async writePartialMirror(paths: string[], label = 'pre-force-update'): Promise<string> {
+    const base = (this.settings.backupPath && this.settings.backupPath.trim())
+      ? this.settings.backupPath.trim()
+      : '.vault-backups';
+
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    const safeLabel = label.replace(/[^\w.-]+/g, '-').slice(0, 60) || 'partial';
+    const root = `${base}/partial/${stamp}-${safeLabel}`;
+
+    const ensure = async (dir: string) => {
+      if (!dir || dir === '/' || dir === '.') return;
+      const parts = dir.split('/').filter(Boolean);
+      let cur = '';
+      for (const p of parts) {
+        cur = cur ? `${cur}/${p}` : p;
+        if (!(await this.app.vault.adapter.exists(cur))) {
+          await this.app.vault.createFolder(cur);
+        }
+      }
+    };
+
+    await ensure(root);
+
+    for (const vp of paths) {
+      try {
+        if (!(await this.app.vault.adapter.exists(vp))) continue;
+        const content = await this.app.vault.adapter.read(vp);
+        const target = `${root}/${vp}`;
+        await ensure(target.split('/').slice(0, -1).join('/'));
+        await this.app.vault.adapter.write(target, content);
+      } catch (e) {
+        console.warn('Partial backup copy failed:', vp, e);
+        this.settings.backupError = `Failed copying ${vp}: ${String(e)}`;
+        await this.saveSettings();
+      }
+    }
+
+    this.settings.lastBackupTime = new Date().toISOString();
+    await this.saveSettings();
+    return root;
+  }
+
 
   private buildIncomingRefCounts(): Map<string, number> {
     const incoming = new Map<string, number>();
@@ -350,12 +394,12 @@ export default class VVunderloreToolkitPlugin extends Plugin {
   }
 
   public applyBaseToolbarEmbedCSS() {
-  if (this.settings.hideBaseToolbar) {
-    document.body.classList.add('vv-hide-bases-toolbar');
-  } else {
-    document.body.classList.remove('vv-hide-bases-toolbar');
+    if (this.settings.hideBaseToolbar) {
+      document.body.classList.add('vv-hide-bases-toolbar');
+    } else {
+      document.body.classList.remove('vv-hide-bases-toolbar');
+    }
   }
-}
 
   // keep your old API working, but add a preWrap flag
   public setPendingSeed(s: string | null, preWrap: boolean = false) {
@@ -1606,9 +1650,8 @@ export default class VVunderloreToolkitPlugin extends Plugin {
           if (cancelBtnEl) cancelBtnEl.disabled = true;
 
           try {
-            await (this as any).plugin.updateSelectedToolkitContent();
+            await (this as any).plugin.performForceUpdateWithSelection(this.normal);
 
-            // success → close preview, show countdown, reload
             this.close();
 
             const success = new Modal(this.app);
@@ -1663,20 +1706,31 @@ export default class VVunderloreToolkitPlugin extends Plugin {
 
   async updateEntryFromManifest(entry: ManifestFileEntry, force: boolean = false) {
     const custom = this.settings.customPaths.find((c) => c.manifestKey === entry.key);
-    if (custom?.doUpdate === false) {
-      return;
-    }
+    if (custom?.doUpdate === false) return;
 
     const finalVaultPath = custom?.vaultPath ?? this.resolveVaultPath(entry.path);
-    if (!force && (await this.fileCacheManager.isUpToDate(finalVaultPath))) {
-      return;
+
+    if (!force && (await this.fileCacheManager.isUpToDate(finalVaultPath))) return;
+
+    const exists = await this.app.vault.adapter.exists(finalVaultPath);
+    if (force && exists) {
+      try {
+        const current = await this.app.vault.adapter.read(finalVaultPath);
+        await this.backupFile(finalVaultPath, current);
+      } catch (e) {
+        console.warn('Backup before force write failed:', finalVaultPath, e);
+      }
     }
 
-    const url = `https://raw.githubusercontent.com/slamwise0001/vvunderlore-toolkit-full/main/${entry.path}`;
+    const url = `https://raw.githubusercontent.com/slamwise0001/VVunderlore-Toolkit-Full/main/${entry.path}`;
     try {
       const res = await fetch(url);
       const text = await res.text();
-      await this.app.vault.adapter.write(finalVaultPath, text);
+      if (exists) {
+        await this.app.vault.adapter.write(finalVaultPath, text);
+      } else {
+        await this.app.vault.create(finalVaultPath, text);
+      }
       await this.fileCacheManager.updateCache(finalVaultPath, text, entry.path);
     } catch (e) {
       console.error(`❌ Error updating ${entry.displayName}:`, e);
@@ -1684,74 +1738,135 @@ export default class VVunderloreToolkitPlugin extends Plugin {
   }
 
   async performForceUpdateWithSelection(previewList: PreviewItem[]) {
-    if (this.settings.autoBackupBeforeUpdate) {
-      // … (your existing backup code) …
-    }
+  // Wipe in-memory backups before we begin
+  this.settings.backupFiles = {};
+  await this.saveSettings();
 
-    this.settings.backupFiles = {};
-    await this.saveSettings();
+  // Build the update set up front (so we can skip backup if nothing to do)
+  const toUpdate = previewList.filter(
+    (item) =>
+      item.selected &&
+      !item.isFolder &&
+      !this.settings.customPaths.some(
+        (c) => c.vaultPath === item.filePath && c.doUpdate === false
+      )
+  );
 
+  if (toUpdate.length === 0) {
+    // Nothing to do — exit quietly
+    return;
+  }
+
+  if (this.settings.autoBackupBeforeUpdate) {
+    new Notice('Starting safety backup of selected files…'); // 1/2
+
+    let backupSucceeded = false;
+
+    // Try disk mirror first (quiet on failure)
     try {
-      // ① Filter out folders, unchecked, and deny-listed:
-      const toUpdate = previewList.filter(
-        (item) =>
-          item.selected &&
-          !item.isFolder &&
-          !this.settings.customPaths.some(
-            (c) => c.vaultPath === item.filePath && c.doUpdate === false
-          )
-      );
-
-      // ② Update each selected file
-      for (const item of toUpdate) {
-        const entry = this.manifestCache.files.find(
-          (f) => this.resolveVaultPath(f.path) === item.filePath
-        );
-        if (!entry) {
-          console.warn(`⚠️ Could not match preview item to manifest: ${item.filePath}`);
-          continue;
-        }
-        await this.updateEntryFromManifest(entry, true);
+      const pathsToBackup = toUpdate.map(i => i.filePath);
+      if (pathsToBackup.length) {
+        await this.writePartialMirror(pathsToBackup, 'pre-force-update');
+        backupSucceeded = true;
       }
-
-      // ③ Ensure all manifest folders exist
-      for (const entry of this.manifestCache.folders) {
-        if (!(await this.app.vault.adapter.exists(entry.path))) {
-          await this.app.vault.createFolder(entry.path);
-        }
-      }
-
-      try {
-        await updateModalFormsFromRepo(this.app);
-      } catch (e) {
-        console.warn('Modal Forms updater (force selection) failed:', e);
-      }
-
-      // 4) Bump version
-      await this.updateVersionFile();
-      this.settings.installedVersion = this.settings.latestToolkitVersion ?? 'unknown';
-      this.settings.lastForceUpdate = new Date().toISOString();
-      await this.saveSettings();
-
-      new Notice('✅ Toolkit force‐updated with your selections.');
-
-      if (this.settings.reparseGamesets) {
-        new Notice('🔄 Refreshing Game Set Data…');
-        await this.refreshGameSetData();
-      }
-
-      if (this.settingsTab) {
-        await this.settingsTab.updateVersionDisplay();
-      }
-    } catch (err) {
-      console.error('❌ Force update failed. Version not changed.', err);
-      new Notice('❌ One or more files failed. Version NOT updated.');
+    } catch (e) {
+      console.warn('[VV] Partial mirror backup failed; falling back to in-memory backup.', e);
     }
 
-    if (this.settings.highlightEnabled) {
-      this.enableHighlight();
+    // Fallback: in-memory backup (quiet, console on per-file issues)
+    if (!backupSucceeded) {
+      try {
+        const now = new Date().toISOString();
+        let backedUp = 0;
+        for (const item of toUpdate) {
+          try {
+            if (await this.app.vault.adapter.exists(item.filePath)) {
+              const current = await this.app.vault.adapter.read(item.filePath);
+              await this.backupFile(item.filePath, current);
+              backedUp++;
+            }
+          } catch (e) {
+            console.warn('[VV] In-memory pre-backup failed for', item.filePath, e);
+          }
+        }
+        if (backedUp > 0) {
+          this.settings.lastBackupTime = now;
+          await this.saveSettings();
+          backupSucceeded = true;
+        }
+      } catch (e) {
+        console.warn('[VV] In-memory backup phase encountered an error.', e);
+      }
+    }
+
+    if (backupSucceeded) {
+      new Notice('Backup complete. Continuing with update…'); // 2/2
+    } else {
+      // Still keep this quiet; only log. (No extra toast.)
+      console.error('[VV] No backup could be created; proceeding anyway per user action.');
     }
   }
+  // --------------------------------------------------------------------
+
+  let updatedCount = 0;
+
+  try {
+    // Update each selected file
+    for (const item of toUpdate) {
+      const entry = this.manifestCache.files.find(
+        (f) => this.resolveVaultPath(f.path) === item.filePath
+      );
+      if (!entry) {
+        console.warn('[VV] Could not match preview item to manifest:', item.filePath);
+        continue;
+      }
+      await this.updateEntryFromManifest(entry, true);
+      updatedCount++;
+    }
+
+    // Ensure manifest folders exist (quiet)
+    for (const entry of this.manifestCache.folders) {
+      if (!(await this.app.vault.adapter.exists(entry.path))) {
+        await this.app.vault.createFolder(entry.path);
+      }
+    }
+
+    // Modal forms updater (quiet)
+    try {
+      await updateModalFormsFromRepo(this.app);
+    } catch (e) {
+      console.warn('[VV] Modal Forms updater (force selection) failed:', e);
+    }
+
+    // Version bump (quiet)
+    await this.updateVersionFile();
+    this.settings.installedVersion = this.settings.latestToolkitVersion ?? 'unknown';
+    this.settings.lastForceUpdate = new Date().toISOString();
+    await this.saveSettings();
+
+    // Optional gameset refresh (quiet)
+    if (this.settings.reparseGamesets) {
+      try {
+        await this.refreshGameSetData();
+      } catch (e) {
+        console.warn('[VV] Game set refresh failed:', e);
+      }
+    }
+
+    if (this.settingsTab) {
+      await this.settingsTab.updateVersionDisplay();
+    }
+  } catch (err) {
+    // Keep failures quiet (log only). No extra toasts.
+    console.error('[VV] Force update failed. Version not changed.', err);
+  }
+
+  if (this.settings.highlightEnabled) {
+    this.enableHighlight();
+  }
+
+}
+
 
   // ─── SINGLE-FILE UPDATE (with GitHub API + raw fallback) ──────────────
 
@@ -1866,11 +1981,11 @@ export default class VVunderloreToolkitPlugin extends Plugin {
       diffCount: number;
 
       constructor(app: App, normal: string[], denied: string[], diffCount: number) {
-  super(app);
-  this.normal = normal;
-  this.denied = denied;
-  this.diffCount = diffCount;
-}
+        super(app);
+        this.normal = normal;
+        this.denied = denied;
+        this.diffCount = diffCount;
+      }
 
       onOpen() {
         this.contentEl.empty();
@@ -1950,66 +2065,66 @@ export default class VVunderloreToolkitPlugin extends Plugin {
           cls: 'mod-cta',
         });
         confirmBtn.onclick = async () => {
-  if (confirmBtn.disabled) return;
+          if (confirmBtn.disabled) return;
 
-  // also freeze Cancel while installing
-  const cancelBtnEl = buttonRow.querySelector('button:not(.mod-cta)') as HTMLButtonElement | null;
-  const prevDisabledCancel = cancelBtnEl?.disabled ?? false;
+          // also freeze Cancel while installing
+          const cancelBtnEl = buttonRow.querySelector('button:not(.mod-cta)') as HTMLButtonElement | null;
+          const prevDisabledCancel = cancelBtnEl?.disabled ?? false;
 
-  confirmBtn.classList.add('mod-loading');
-  confirmBtn.setAttribute('aria-busy', 'true');
-  confirmBtn.disabled = true;
-  if (cancelBtnEl) cancelBtnEl.disabled = true;
+          confirmBtn.classList.add('mod-loading');
+          confirmBtn.setAttribute('aria-busy', 'true');
+          confirmBtn.disabled = true;
+          if (cancelBtnEl) cancelBtnEl.disabled = true;
 
-  try {
-    await (this as any).plugin.updateSelectedToolkitContent();
+          try {
+            await (this as any).plugin.updateSelectedToolkitContent();
 
-    this.close();
+            this.close();
 
-    // If there were real diffs, do a live countdown + reload.
-    if (this.diffCount > 0) {
-      const success = new Modal(this.app);
-      success.onOpen = () => {
-        success.contentEl.empty();
-        success.titleEl.setText('✅ Toolkit Updated');
+            // If there were real diffs, do a live countdown + reload.
+            if (this.diffCount > 0) {
+              const success = new Modal(this.app);
+              success.onOpen = () => {
+                success.contentEl.empty();
+                success.titleEl.setText('✅ Toolkit Updated');
 
-        const msg = success.contentEl.createEl('div', { cls: 'installsuccess' });
-        let seconds = 3;
+                const msg = success.contentEl.createEl('div', { cls: 'installsuccess' });
+                let seconds = 3;
 
-        const render = () => { msg.setText(`Reloading vault in ${seconds}…`); };
-        render();
+                const render = () => { msg.setText(`Reloading vault in ${seconds}…`); };
+                render();
 
-        const timer = window.setInterval(() => {
-          seconds -= 1;
-          if (seconds <= 0) {
-            window.clearInterval(timer);
-            success.close();
-            try {
-              (this.app as any).commands.executeCommandById('app:reload');
-            } catch {
-              window.location.reload();
+                const timer = window.setInterval(() => {
+                  seconds -= 1;
+                  if (seconds <= 0) {
+                    window.clearInterval(timer);
+                    success.close();
+                    try {
+                      (this.app as any).commands.executeCommandById('app:reload');
+                    } catch {
+                      window.location.reload();
+                    }
+                    return;
+                  }
+                  render();
+                }, 1000);
+
+                // clean up if user closes early
+                success.onClose = () => window.clearInterval(timer);
+              };
+              success.open();
+            } else {
+              // No changes applied — don’t reload
+              new Notice('Already up to date — no changes applied.');
             }
-            return;
+          } catch (err) {
+            console.error('Install failed:', err);
+            confirmBtn.classList.remove('mod-loading');
+            confirmBtn.removeAttribute('aria-busy');
+            confirmBtn.disabled = false;
+            if (cancelBtnEl) cancelBtnEl.disabled = prevDisabledCancel;
           }
-          render();
-        }, 1000);
-
-        // clean up if user closes early
-        success.onClose = () => window.clearInterval(timer);
-      };
-      success.open();
-    } else {
-      // No changes applied — don’t reload
-      new Notice('Already up to date — no changes applied.');
-    }
-  } catch (err) {
-    console.error('Install failed:', err);
-    confirmBtn.classList.remove('mod-loading');
-    confirmBtn.removeAttribute('aria-busy');
-    confirmBtn.disabled = false;
-    if (cancelBtnEl) cancelBtnEl.disabled = prevDisabledCancel;
-  }
-};
+        };
 
         // “Cancel” button
         const cancelBtn = buttonRow.createEl('button', { text: 'Cancel' });
@@ -2042,7 +2157,7 @@ export default class VVunderloreToolkitPlugin extends Plugin {
         continue;
       }
 
-      const custom = this.settings.customPaths.find((c) => c.manifestKey === f.path);
+      const custom = this.settings.customPaths.find((c) => c.manifestKey === f.key);
       const isInDenyFolder = denyListedFolders.some((folder) =>
         f.path.startsWith(folder + '/')
       );
@@ -2069,7 +2184,7 @@ export default class VVunderloreToolkitPlugin extends Plugin {
           continue;
         }
 
-        const custom = this.settings.customPaths.find((c) => c.manifestKey === f.path);
+        const custom = this.settings.customPaths.find((c) => c.manifestKey === f.key);
         const isInDenyFolder = denyListedFolders.some((folder) =>
           f.path.startsWith(folder + '/')
         );
@@ -2463,7 +2578,7 @@ export default class VVunderloreToolkitPlugin extends Plugin {
         await this.settingsTab.updateVersionDisplay();
       }
     } catch (err) {
-      console.error('❌ CUstom update failed. Version not updated.', err);
+      console.error('❌ Custom update failed. Version not updated.', err);
       new Notice('❌ Update failed. See console for details.');
     }
 
