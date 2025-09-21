@@ -1763,28 +1763,10 @@ export default class VVunderloreToolkitPlugin extends Plugin {
   // ─── PREVIEW + REMOTE-BASELINE + DIFF ─────────────────────────────────
 
   async previewUpdatesModal() {
-    // “Loading…” placeholder while syncing
-    const loading = new (class extends Modal {
-      constructor(app: App) {
-        super(app);
-      }
-      onOpen() {
-        this.contentEl.empty();
-        this.contentEl
-          .createDiv({
-            text: '🔄 Checking for updates…',
-            cls: 'mod-warning',
-          })
-          .addEventListener('click', (e) => e.stopPropagation());
-      }
-    })(this.app);
 
-    loading.open();
     await this.syncManifest();
     await this.fetchRemoteBaseline();
-    // buildUpdatePreview() now returns only “real” diffs (no stale deny‐list)
     const diffs = await this.buildUpdatePreview();
-    loading.close();
 
     // Split out deny‐listed lines vs. everything else
     const denyListedLines: string[] = [];
@@ -1888,10 +1870,30 @@ export default class VVunderloreToolkitPlugin extends Plugin {
           cls: 'mod-cta',
         });
         confirmBtn.onclick = async () => {
-          await (this as any).plugin.updateSelectedToolkitContent();
-          this.close();
-        };
+          if (confirmBtn.disabled) return;
 
+          // optional: also freeze Cancel while installing
+          const cancelBtnEl = buttonRow.querySelector('button:not(.mod-cta)') as HTMLButtonElement | null;
+
+          const prevDisabledCancel = cancelBtnEl?.disabled ?? false;
+
+          confirmBtn.classList.add('mod-loading');
+          confirmBtn.setAttribute('aria-busy', 'true');
+          confirmBtn.disabled = true;
+          if (cancelBtnEl) cancelBtnEl.disabled = true;
+
+          try {
+            await (this as any).plugin.updateSelectedToolkitContent();
+            this.close();
+          } catch (err) {
+            console.error('Install failed:', err);
+            // keep modal open so user can retry
+            confirmBtn.classList.remove('mod-loading');
+            confirmBtn.removeAttribute('aria-busy');
+            confirmBtn.disabled = false;
+            if (cancelBtnEl) cancelBtnEl.disabled = prevDisabledCancel;
+          }
+        };
         // “Cancel” button
         const cancelBtn = buttonRow.createEl('button', { text: 'Cancel' });
         cancelBtn.onclick = () => this.close();

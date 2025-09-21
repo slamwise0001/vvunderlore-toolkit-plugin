@@ -26,14 +26,12 @@ import { AdventureSortOption } from './types';
 import { ADVENTURE_CATEGORY_DEFS, getAdventureCategoryIds } from './adv-categories';
 
 
-// Define your CustomPathEntry interface.
 interface CustomPathEntry {
 	vaultPath: string;
 	manifestKey: string;
 	doUpdate: boolean;
 }
 
-// FilePathSuggester for live search on vault files.
 class FilePathSuggester extends AbstractInputSuggest<string> {
 	private inputEl: HTMLInputElement;
 	private paths: { path: string; isFolder: boolean }[] = [];
@@ -44,7 +42,6 @@ class FilePathSuggester extends AbstractInputSuggest<string> {
 		super(app, inputEl);
 		this.inputEl = inputEl;
 
-		// Get folders and markdown files from the vault.
 		const folders = Object.values(app.vault.getAllLoadedFiles())
 			.filter((f): f is TFolder => f instanceof TFolder)
 			.map(f => ({ path: f.path, isFolder: true }));
@@ -102,7 +99,6 @@ class FilePathSuggester extends AbstractInputSuggest<string> {
 	}
 }
 
-// Modal for displaying the changelog.
 class MarkdownPreviewModal extends Modal {
 	constructor(app: App, private content: string) {
 		super(app);
@@ -123,27 +119,24 @@ class MarkdownPreviewModal extends Modal {
 }
 
 function wireRotate(detailsEl: HTMLDetailsElement, iconEl: HTMLElement) {
-  const apply = () => iconEl.classList.toggle('vv-rotated', detailsEl.open);
-  apply(); // set initial state
-  detailsEl.addEventListener('toggle', apply);
+	const apply = () => iconEl.classList.toggle('vv-rotated', detailsEl.open);
+	apply();
+	detailsEl.addEventListener('toggle', apply);
 }
 
-// robust keep-open with one-time listener + clear initial state
 function keepOpen(details: HTMLDetailsElement, key: string, opts?: { defaultOpen?: boolean }) {
-  const { defaultOpen = false } = opts || {};
-  const ls = window.localStorage;
+	const { defaultOpen = false } = opts || {};
+	const ls = window.localStorage;
 
-  // 1) apply initial state once, deterministically
-  const stored = ls.getItem(key);          // '1' | '0' | null
-  details.open = stored === '1' || (stored === null && defaultOpen);
+	const stored = ls.getItem(key);          // '1' | '0' | null
+	details.open = stored === '1' || (stored === null && defaultOpen);
 
-  // 2) avoid stacking multiple listeners on re-render
-  if (!(details as any)._vvKeepOpenBound) {
-    details.addEventListener('toggle', () => {
-      try { ls.setItem(key, details.open ? '1' : '0'); } catch {}
-    });
-    (details as any)._vvKeepOpenBound = true;
-  }
+	if (!(details as any)._vvKeepOpenBound) {
+		details.addEventListener('toggle', () => {
+			try { ls.setItem(key, details.open ? '1' : '0'); } catch { }
+		});
+		(details as any)._vvKeepOpenBound = true;
+	}
 }
 
 
@@ -510,7 +503,7 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 			const vaultRow = versionInfo.createDiv();
 			vaultRow.appendText('Vault Toolkit Version: ');
 
-			this.versionValueEl = vaultRow.createSpan(); 
+			this.versionValueEl = vaultRow.createSpan();
 			this.versionValueEl.textContent = installed;
 			this.versionValueEl.addClass("vv-bold", isMatch ? "vv-success" : "vv-error");
 
@@ -527,52 +520,57 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 			buttonRow.addClass("settings-buttonrow");
 
 			const checkBtn = buttonRow.createEl('button', {
-				text: installed !== latest ? 'Preview Update' : 'Check for Updates',
+				text: installed !== latest ? 'Update Available!' : 'Check for Updates',
 				cls: 'mod-cta'
 			});
+			this.checkBtnEl = checkBtn;
+			checkBtn.dataset.state = installed !== latest ? 'update' : 'check';
 
 			checkBtn.addEventListener('click', async () => {
-				// Re-read live values at click time
-				let installedNow = '';
-				try {
-					const ver = await this.plugin.app.vault.adapter.read('.version.json');
-					installedNow = JSON.parse(ver).version ?? '';
-				} catch { }
+  if (checkBtn.disabled) return;
 
-				const latestNow = this.plugin.settings.latestToolkitVersion ?? '';
+  // 1) Fast path: we already know an update exists (set via dataset/state)
+  if (checkBtn.dataset.state === 'update') {
+    this.plugin.previewUpdatesModal();
+    return;
+  }
 
-				// If an update is available, open the preview on the next frame
-				if (installedNow && latestNow && installedNow !== latestNow) {
-					requestAnimationFrame(() => this.plugin.previewUpdatesModal());
-					return;
-				}
+  // 2) Otherwise, do a 3s spinner while checking network
+  const prevLabel = checkBtn.textContent || 'Check for Updates';
+  checkBtn.classList.add('mod-loading');
+  checkBtn.setAttribute('aria-busy', 'true');
+  checkBtn.disabled = true;
 
-				// Otherwise run a network check — safely disable the button while we do
-				const prevLabel = checkBtn.textContent || 'Check for Updates';
-				checkBtn.disabled = true;
-				checkBtn.textContent = 'Checking…';
+  try {
+    const minDelay = new Promise<void>(res => setTimeout(res, 3000));
+    await Promise.all([ this.plugin.checkForUpdates(), minDelay ]);
 
-				try {
-					await this.plugin.checkForUpdates();
-					await this.updateVersionDisplay();
+    await this.updateVersionDisplay(); // keeps text + dataset.state in sync
 
-					// Recompute the label based on the new state
-					let installedAfter = '';
-					try {
-						const ver2 = await this.plugin.app.vault.adapter.read('.version.json');
-						installedAfter = JSON.parse(ver2).version ?? '';
-					} catch { }
-					const latestAfter = this.plugin.settings.latestToolkitVersion ?? '';
+    // Stop spinner
+    checkBtn.classList.remove('mod-loading');
+    checkBtn.removeAttribute('aria-busy');
 
-					checkBtn.textContent =
-						installedAfter && latestAfter && installedAfter !== latestAfter
-							? 'Preview Update'
-							: 'Check for Updates';
-				} finally {
-					checkBtn.disabled = false;
-				}
-			});
+    // 3) Decide next state from the freshly-updated dataset/state
+    if (checkBtn.dataset.state === 'update') {
+      // Now that we know, enable and let the next click open preview immediately
+      checkBtn.disabled = false;
+      checkBtn.textContent = 'Update Available!';
+      checkBtn.onclick = () => { this.plugin.previewUpdatesModal(); };
+      return;
+    }
 
+    // Up to date → freeze disabled until settings is closed
+    checkBtn.textContent = 'Up to date!';
+    checkBtn.disabled = true;
+  } catch (err) {
+    console.error('Update check failed:', err);
+    checkBtn.classList.remove('mod-loading');
+    checkBtn.removeAttribute('aria-busy');
+    checkBtn.textContent = prevLabel;
+    checkBtn.disabled = false;
+  }
+});
 
 			const changelogBtn = buttonRow.createEl('button', { text: '📖 View Changelog' });
 			changelogBtn.addEventListener('click', () => {
@@ -637,17 +635,17 @@ export class ToolkitSettingsTab extends PluginSettingTab {
 			});
 
 			// ── Right side: static toggle icon (rotates in place only) ──────────────────
-const fixToggleIcon = fixHeaderRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
-// keep styles if you want, but rotation is handled by the class now:
-Object.assign(fixToggleIcon.style, {
-  fontWeight: 'bold',
-  display: 'inline-block',
-  transition: 'transform 0.2s ease',
-  transformOrigin: '50% 50%',
-  userSelect: 'none',
-});
-// rotate based on <details open>
-wireRotate(fixDetails as HTMLDetailsElement, fixToggleIcon);
+			const fixToggleIcon = fixHeaderRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
+			// keep styles if you want, but rotation is handled by the class now:
+			Object.assign(fixToggleIcon.style, {
+				fontWeight: 'bold',
+				display: 'inline-block',
+				transition: 'transform 0.2s ease',
+				transformOrigin: '50% 50%',
+				userSelect: 'none',
+			});
+			// rotate based on <details open>
+			wireRotate(fixDetails as HTMLDetailsElement, fixToggleIcon);
 
 			// ─── Body (same as before, just indented under <details>) ───────────────────
 			const fixBody = fixDetails.createDiv({ cls: 'vk-section-body' });
@@ -748,7 +746,6 @@ wireRotate(fixDetails as HTMLDetailsElement, fixToggleIcon);
 			keepOpen(backupDetails as HTMLDetailsElement, 'vv:backup');
 
 
-			// Summary block: stacked column layout
 			const backupSummary = backupDetails.createEl('summary', { cls: 'vk-section-header' });
 
 			Object.assign(backupSummary.style, {
@@ -760,7 +757,6 @@ wireRotate(fixDetails as HTMLDetailsElement, fixToggleIcon);
 				cursor: 'pointer',
 			});
 
-			// Create title + icon row
 			const backupTitleRow = backupSummary.createDiv({
 				attr: {
 					style: `
@@ -771,7 +767,6 @@ wireRotate(fixDetails as HTMLDetailsElement, fixToggleIcon);
 				},
 			});
 
-			// Left: header block (title + description together) 
 			const titleBlock = backupTitleRow.createDiv({
 				attr: { style: 'display: flex; flex-direction: column;' }
 			});
@@ -784,17 +779,16 @@ wireRotate(fixDetails as HTMLDetailsElement, fixToggleIcon);
 				attr: { style: 'margin-top: 0.25em;' },
 			});
 
-const backupVvIcon = backupTitleRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
-Object.assign(backupVvIcon.style, {
-  fontWeight: 'bold',
-  display: 'inline-block',
-  transition: 'transform 0.2s ease',
-  transformOrigin: '50% 50%',
-  userSelect: 'none',
-});
-wireRotate(backupDetails as HTMLDetailsElement, backupVvIcon);
+			const backupVvIcon = backupTitleRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
+			Object.assign(backupVvIcon.style, {
+				fontWeight: 'bold',
+				display: 'inline-block',
+				transition: 'transform 0.2s ease',
+				transformOrigin: '50% 50%',
+				userSelect: 'none',
+			});
+			wireRotate(backupDetails as HTMLDetailsElement, backupVvIcon);
 
-			// 2) Body
 			const backupBody = backupDetails.createDiv({ cls: 'vk-section-body' });
 			backupBody.addClass("vv-pl-md");
 
@@ -898,15 +892,15 @@ wireRotate(backupDetails as HTMLDetailsElement, backupVvIcon);
 				attr: { style: 'margin-top: 0.25em;' },
 			});
 
-const customVvIcon = titleRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
-Object.assign(customVvIcon.style, {
-  fontWeight: 'bold',
-  display: 'inline-block',
-  transition: 'transform 0.2s ease',
-  transformOrigin: '50% 50%',
-  userSelect: 'none',
-});
-wireRotate(customizationDetails as HTMLDetailsElement, customVvIcon);
+			const customVvIcon = titleRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
+			Object.assign(customVvIcon.style, {
+				fontWeight: 'bold',
+				display: 'inline-block',
+				transition: 'transform 0.2s ease',
+				transformOrigin: '50% 50%',
+				userSelect: 'none',
+			});
+			wireRotate(customizationDetails as HTMLDetailsElement, customVvIcon);
 
 
 			const customizationBodyWrapper = customizationDetails.createDiv({
@@ -1137,15 +1131,15 @@ wireRotate(customizationDetails as HTMLDetailsElement, customVvIcon);
 				attr: { style: 'margin-top:0.25em;' },
 			});
 
-const behaviorIcon = behaviorRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
-Object.assign(behaviorIcon.style, {
-  fontWeight: 'bold',
-  display: 'inline-block',
-  transition: 'transform 0.2s ease',
-  transformOrigin: '50% 50%',
-  userSelect: 'none',
-});
-wireRotate(behaviorDetails as HTMLDetailsElement, behaviorIcon);
+			const behaviorIcon = behaviorRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
+			Object.assign(behaviorIcon.style, {
+				fontWeight: 'bold',
+				display: 'inline-block',
+				transition: 'transform 0.2s ease',
+				transformOrigin: '50% 50%',
+				userSelect: 'none',
+			});
+			wireRotate(behaviorDetails as HTMLDetailsElement, behaviorIcon);
 
 
 			const behaviorBody = behaviorDetails.createDiv({ cls: 'vk-section-body' });
@@ -1198,7 +1192,7 @@ wireRotate(behaviorDetails as HTMLDetailsElement, behaviorIcon);
 			const setOpen = (v: boolean) => {
 				open = v;
 				panel.style.display = v ? '' : 'none';
- 			};
+			};
 
 			trigger.addEventListener('click', (e) => {
 				e.preventDefault();
@@ -1332,14 +1326,14 @@ wireRotate(behaviorDetails as HTMLDetailsElement, behaviorIcon);
 			});
 
 			const hlToggleIcon = highlightTitleRow.createEl('span', { text: 'VV', cls: 'vk-toggle-icon' });
-Object.assign(hlToggleIcon.style, {
-  fontWeight: 'bold',
-  display: 'inline-block',
-  transition: 'transform 0.2s ease',
-  transformOrigin: '50% 50%',
-  userSelect: 'none',
-});
-wireRotate(highlightDetails as HTMLDetailsElement, hlToggleIcon);
+			Object.assign(hlToggleIcon.style, {
+				fontWeight: 'bold',
+				display: 'inline-block',
+				transition: 'transform 0.2s ease',
+				transformOrigin: '50% 50%',
+				userSelect: 'none',
+			});
+			wireRotate(highlightDetails as HTMLDetailsElement, hlToggleIcon);
 
 
 			// 2) Create the body container (indented, same as backup)
@@ -1604,6 +1598,12 @@ wireRotate(highlightDetails as HTMLDetailsElement, hlToggleIcon);
 			});
 			warn.addClass('vv-small', 'vv-muted', 'vv-italic');
 			warn.setAttr('title', 'Force updating while a new version is available may skip important changes.');
+		}
+		if (this.checkBtnEl) {
+			const hasUpdate = Boolean(installed && latest && installed !== latest);
+			this.checkBtnEl.dataset.state = hasUpdate ? 'update' : 'check';
+			this.checkBtnEl.textContent = hasUpdate ? 'Update Available!' : 'Check for Updates';
+			this.checkBtnEl.disabled = false; // ensure it’s clickable after refreshes
 		}
 	}
 
