@@ -480,20 +480,36 @@ export default class VVunderloreToolkitPlugin extends Plugin {
 
       // 7) Success modal & reload vault
       installing.close();
+
       const success = new Modal(this.app);
       success.onOpen = () => {
         success.contentEl.empty();
         success.titleEl.setText('✅ Custom Install Complete');
-        success.contentEl.createEl('div', {
-          text: 'Reloading vault in 3 seconds…',
-          cls: 'installsuccess'
-        });
+
+        const msg = success.contentEl.createEl('div', { cls: 'installsuccess' });
+        let seconds = 3;
+
+        const render = () => {
+          msg.setText(`Reloading vault in ${seconds}…`);
+        };
+        render();
+
+        const timer = window.setInterval(() => {
+          seconds -= 1;
+          if (seconds <= 0) {
+            window.clearInterval(timer);
+            success.close();
+            try {
+              (this.app as any).commands.executeCommandById('app:reload');
+            } catch {
+              window.location.reload();
+            }
+            return;
+          }
+          render();
+        }, 1000);
       };
       success.open();
-      setTimeout(() => {
-        success.close();
-        location.reload();
-      }, 3000);
 
     } catch (err) {
       console.error('❌ performCustomInstall failed:', err);
@@ -1563,13 +1579,63 @@ export default class VVunderloreToolkitPlugin extends Plugin {
         cancelBtn.onclick = () => this.close();
 
         const confirmBtn = buttonRow.createEl('button', {
-          text: 'Confirm and Update',
+          text: 'Confirm & Update',
           cls: 'mod-cta',
         });
         confirmBtn.onclick = async () => {
-          this.close();
-          // Pass everything into performForceUpdateWithSelection; deny-listed items will be skipped
-          await this.plugin.performForceUpdateWithSelection([...this.normal, ...this.denied]);
+          if (confirmBtn.disabled) return;
+
+          const cancelBtnEl = buttonRow.querySelector('button:not(.mod-cta)') as HTMLButtonElement | null;
+
+          const prevDisabledCancel = cancelBtnEl?.disabled ?? false;
+
+          confirmBtn.classList.add('mod-loading');
+          confirmBtn.setAttribute('aria-busy', 'true');
+          confirmBtn.disabled = true;
+          if (cancelBtnEl) cancelBtnEl.disabled = true;
+
+          try {
+            await (this as any).plugin.updateSelectedToolkitContent();
+
+            // success → close preview, show countdown, reload
+            this.close();
+
+            const success = new Modal(this.app);
+            success.onOpen = () => {
+              success.contentEl.empty();
+              success.titleEl.setText('✅ Toolkit Updated');
+
+              const msg = success.contentEl.createEl('div', { cls: 'installsuccess' });
+              let seconds = 3;
+
+              const render = () => {
+                msg.setText(`Reloading vault in ${seconds}…`);
+              };
+              render();
+
+              const timer = window.setInterval(() => {
+                seconds -= 1;
+                if (seconds <= 0) {
+                  window.clearInterval(timer);
+                  success.close();
+                  try {
+                    (this.app as any).commands.executeCommandById('app:reload');
+                  } catch {
+                    window.location.reload();
+                  }
+                  return;
+                }
+                render();
+              }, 1000);
+            };
+            success.open();
+          } catch (err) {
+            console.error('Install failed:', err);
+            confirmBtn.classList.remove('mod-loading');
+            confirmBtn.removeAttribute('aria-busy');
+            confirmBtn.disabled = false;
+            if (cancelBtnEl) cancelBtnEl.disabled = prevDisabledCancel;
+          }
         };
       }
 
@@ -1780,17 +1846,20 @@ export default class VVunderloreToolkitPlugin extends Plugin {
       }
     }
 
-    // Now create the modal
+    const diffCount = normalLines.length;
+
     const modal = new (class extends Modal {
       plugin: VVunderloreToolkitPlugin;
       normal: string[];
       denied: string[];
+      diffCount: number;
 
-      constructor(app: App, normal: string[], denied: string[]) {
-        super(app);
-        this.normal = normal;
-        this.denied = denied;
-      }
+      constructor(app: App, normal: string[], denied: string[], diffCount: number) {
+  super(app);
+  this.normal = normal;
+  this.denied = denied;
+  this.diffCount = diffCount;
+}
 
       onOpen() {
         this.contentEl.empty();
@@ -1870,30 +1939,67 @@ export default class VVunderloreToolkitPlugin extends Plugin {
           cls: 'mod-cta',
         });
         confirmBtn.onclick = async () => {
-          if (confirmBtn.disabled) return;
+  if (confirmBtn.disabled) return;
 
-          // optional: also freeze Cancel while installing
-          const cancelBtnEl = buttonRow.querySelector('button:not(.mod-cta)') as HTMLButtonElement | null;
+  // also freeze Cancel while installing
+  const cancelBtnEl = buttonRow.querySelector('button:not(.mod-cta)') as HTMLButtonElement | null;
+  const prevDisabledCancel = cancelBtnEl?.disabled ?? false;
 
-          const prevDisabledCancel = cancelBtnEl?.disabled ?? false;
+  confirmBtn.classList.add('mod-loading');
+  confirmBtn.setAttribute('aria-busy', 'true');
+  confirmBtn.disabled = true;
+  if (cancelBtnEl) cancelBtnEl.disabled = true;
 
-          confirmBtn.classList.add('mod-loading');
-          confirmBtn.setAttribute('aria-busy', 'true');
-          confirmBtn.disabled = true;
-          if (cancelBtnEl) cancelBtnEl.disabled = true;
+  try {
+    await (this as any).plugin.updateSelectedToolkitContent();
 
-          try {
-            await (this as any).plugin.updateSelectedToolkitContent();
-            this.close();
-          } catch (err) {
-            console.error('Install failed:', err);
-            // keep modal open so user can retry
-            confirmBtn.classList.remove('mod-loading');
-            confirmBtn.removeAttribute('aria-busy');
-            confirmBtn.disabled = false;
-            if (cancelBtnEl) cancelBtnEl.disabled = prevDisabledCancel;
+    this.close();
+
+    // If there were real diffs, do a live countdown + reload.
+    if (this.diffCount > 0) {
+      const success = new Modal(this.app);
+      success.onOpen = () => {
+        success.contentEl.empty();
+        success.titleEl.setText('✅ Toolkit Updated');
+
+        const msg = success.contentEl.createEl('div', { cls: 'installsuccess' });
+        let seconds = 3;
+
+        const render = () => { msg.setText(`Reloading vault in ${seconds}…`); };
+        render();
+
+        const timer = window.setInterval(() => {
+          seconds -= 1;
+          if (seconds <= 0) {
+            window.clearInterval(timer);
+            success.close();
+            try {
+              (this.app as any).commands.executeCommandById('app:reload');
+            } catch {
+              window.location.reload();
+            }
+            return;
           }
-        };
+          render();
+        }, 1000);
+
+        // clean up if user closes early
+        success.onClose = () => window.clearInterval(timer);
+      };
+      success.open();
+    } else {
+      // No changes applied — don’t reload
+      new Notice('Already up to date — no changes applied.');
+    }
+  } catch (err) {
+    console.error('Install failed:', err);
+    confirmBtn.classList.remove('mod-loading');
+    confirmBtn.removeAttribute('aria-busy');
+    confirmBtn.disabled = false;
+    if (cancelBtnEl) cancelBtnEl.disabled = prevDisabledCancel;
+  }
+};
+
         // “Cancel” button
         const cancelBtn = buttonRow.createEl('button', { text: 'Cancel' });
         cancelBtn.onclick = () => this.close();
@@ -1902,7 +2008,7 @@ export default class VVunderloreToolkitPlugin extends Plugin {
       onClose() {
         this.contentEl.empty();
       }
-    })(this.app, normalLines, denyListedLines);
+    })(this.app, normalLines, denyListedLines, diffCount);
 
     // Attach plugin pointer and open
     (modal as any).plugin = this;
