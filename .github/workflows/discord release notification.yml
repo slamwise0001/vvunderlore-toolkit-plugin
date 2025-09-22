@@ -1,22 +1,55 @@
+name: Notify Discord on release
+
 on:
   release:
     types: [published]
 
 jobs:
-  github-releases-to-discord:
+  notify:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: GitHub Releases to Discord
-        uses: SethCohen/github-releases-to-discord@v1
-        with:
-          webhook_url: ${{ secrets.WEBHOOK_URL }}
-          color: "7873949"
-          username: "Update Peddler"
-          avatar_url: "https://cdn.discordapp.com/avatars/487431320314576937/bd64361e4ba6313d561d54e78c9e7171.png"
-          content: "||@everyone|| THERE IS A NEW UPDATE FOR THE TOOLKIT PLUGIN:"
-          footer_title: "VVunderlore Toolkit Plugin"
-          footer_timestamp: true
-          max_description: 4096	
-          reduce_headings: true
+      - name: Build Discord embed
+        shell: bash
+        run: |
+          set -euo pipefail
+          title="$(jq -r '.release.name // empty' "$GITHUB_EVENT_PATH")"
+          tag="$(jq -r '.release.tag_name' "$GITHUB_EVENT_PATH")"
+          [ -n "$title" ] || title="$tag"
+          TITLE="VVunderlore Toolkit Plugin • ${title}"
+
+          body="$(jq -r '.release.body // ""' "$GITHUB_EVENT_PATH")"
+          printf '%s' "$body" | head -c 3900 > desc.txt
+
+          jq -n \
+            --arg username "Update Peddler" \
+            --arg avatar "https://publish-01.obsidian.md/access/6eeb85818256487c684eecfe4fbff970/Extras/Toolkit/Images/update_peddler.jpg" \
+            --arg title "$TITLE" \
+            --rawfile description desc.txt \
+            --argjson color 7212437 \
+            --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              username: $username,
+              avatar_url: $avatar,
+              embeds: [
+                {
+                  title: $title,
+                  description: $description,
+                  color: $color,
+                  footer: { text: "VVunderlore Toolkit Plugin" },
+                  timestamp: $timestamp
+                }
+              ]
+            }' > payload.json
+
+      - name: Send to Discord
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.WEBHOOK_URL }}
+        run: |
+          set -e
+          code=$(curl -sS -o resp.txt -w "%{http_code}" \
+            -H "Content-Type: application/json" \
+            -X POST "$DISCORD_WEBHOOK?wait=true" \
+            -d @payload.json)
+          echo "HTTP $code"
+          cat resp.txt
+          test "$code" -ge 200 -a "$code" -lt 300
